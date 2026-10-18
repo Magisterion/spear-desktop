@@ -175,3 +175,35 @@ ytmusic-player-bar {
   box-sizing: border-box !important;
   max-width: 100% !important;
 }
+
+/* Filled native actions and selected chips need their own contrasting text. */
+ytmusic-app
+  :is(
+    .yt-spec-button-shape-next--mono.yt-spec-button-shape-next--filled,
+    .yt-spec-button-shape-next--tonal,
+    ytmusic-chip-cloud-chip-renderer[selected],
+    tp-yt-paper-button.ytmusic-button-renderer
+  ) {
+  background: var(--player-accent) !important;
+  color: var(--player-accent-text, #101820) !important;
+  --yt-primary-text-color: var(--player-accent-text, #101820) !important;
+}
+ytmusic-app
+  :is(
+    .yt-spec-button-shape-next--filled,
+    .yt-spec-button-shape-next--tonal,
+    ytmusic-chip-cloud-chip-renderer[selected],
+    tp-yt-paper-button.ytmusic-button-renderer
+  )
+  :is(span, yt-formatted-string, a, yt-icon) {
+  color: var(--player-accent-text, #101820) !important;
+}
+/* The mini guide begins below both the app title and Music navigation bar. */
+ytmusic-app ytmusic-mini-guide-renderer {
+  top: calc(
+    var(--menu-bar-height, 40px) + var(--ytmusic-nav-bar-height, 64px)
+  ) !important;
+  height: calc(
+    100vh - var(--menu-bar-height, 40px) - var(--ytmusic-nav-bar-height, 64px)
+  ) !important;
+}

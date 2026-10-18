@@ -425,12 +425,7 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(
       game.getByText('Play music to bring the track to life'),
     ).toBeVisible();
-    await game
-      .getByRole('button', { name: 'Autopilot: off', exact: true })
-      .click();
-    await expect(
-      game.getByRole('button', { name: 'Autopilot: on', exact: true }),
-    ).toBeVisible();
+    await expect(game.getByRole('button')).toHaveCount(0);
     await game.evaluate(async () => {
       const video = document.querySelector('video');
       Object.defineProperty(video, 'paused', {
@@ -463,16 +458,35 @@ test('Spear preferences use local IPC and portable data', async () => {
       )
       .toBeGreaterThan(0.4);
     // A 0.4 sine has RMS 0.283. A parallel dry path would double this.
-    const rms = await game.evaluate(() => {
-      const data = new Float32Array(2048);
-      window.outputMeter.getFloatTimeDomainData(data);
-      return Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
+    const rms = () =>
+      game.evaluate(() => {
+        const data = new Float32Array(2048);
+        window.outputMeter.getFloatTimeDomainData(data);
+        return Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
+      });
+    await expect.poll(rms).toBeGreaterThan(0.24);
+    expect(await rms()).toBeLessThan(0.32);
+    // The actual audible output must respond to equalizer changes.
+    await game.evaluate(() =>
+      setEqualizer([0, -12, -12, 0, 0, 0, 0, 0, 0, 0], true),
+    );
+    await expect.poll(rms).toBeLessThan(0.15);
+    await game.evaluate(() => setEqualizer(Array(10).fill(0), true));
+    await expect.poll(rms).toBeGreaterThan(0.24);
+    await game.keyboard.press('d');
+    await expect(game.locator('#score')).toContainText('Energy');
+    await game.keyboard.press('r');
+    await expect(game.locator('#score')).toContainText('0 pts');
+    await game.evaluate(async () => {
+      audioMotion.band = 0;
+      audioMotion.beat++;
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'd', bubbles: true }),
+      );
     });
-    expect(rms).toBeGreaterThan(0.24);
-    expect(rms).toBeLessThan(0.32);
-    await game.keyboard.press('Space');
-    await expect(game.locator('#score')).toContainText('charging');
-    await expect(game.locator('#score')).toContainText(/2 s/);
+    await expect(game.locator('#score')).toContainText(/[1-9][0-9]* pts/);
+
     await game.screenshot({
       path: path.join(root, 'test-results/spear-pulsefield.png'),
     });
@@ -635,7 +649,11 @@ test('Portable update shows progress, cancels and verifies before offering resta
           if (String(url) === base + 'YouTube-Music-Spear.exe.sha256')
             return new Response(hash);
           if (String(url) === base + 'YouTube-Music-Spear.exe') {
-            let offset = 0;
+            const start = Number(
+              /bytes=(\d+)-/.exec(options?.headers?.Range ?? '')?.[1] ?? 0,
+            );
+            globalThis.spearResumeStart = start;
+            let offset = start;
             return new Response(
               new ReadableStream({
                 async pull(controller) {
@@ -652,6 +670,14 @@ test('Portable update shows progress, cancels and verifies before offering resta
                   offset += 4096;
                 },
               }),
+              start
+                ? {
+                    status: 206,
+                    headers: {
+                      'Content-Range': `bytes ${start}-${bytes.length - 1}/${bytes.length}`,
+                    },
+                  }
+                : {},
             );
           }
           return original(url, options);
@@ -677,14 +703,23 @@ test('Portable update shows progress, cancels and verifies before offering resta
       update.getByRole('button', { name: 'Cancel', exact: true }),
     ).toBeVisible();
     await expect(update.locator('#stats')).toContainText('%');
-    // The separate preferences window remains usable during download.
-    await settings.getByRole('button', { name: 'About', exact: true }).click();
-    await expect(
-      settings.getByRole('heading', {
-        name: 'YouTube Music Spear',
-        exact: true,
-      }),
-    ).toBeVisible();
+    expect(
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().includes('settings-'))
+          ?.isVisible(),
+      ),
+    ).toBe(false);
+    expect(
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().includes('updater-'))
+          ?.isAlwaysOnTop(),
+      ),
+    ).toBe(false);
+    await expect
+      .poll(() => update.locator('#stats').innerText())
+      .toMatch(/ [1-9][0-9]*%|^[1-9][0-9]*%/);
     await update.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(update.getByRole('heading')).toHaveText('Download cancelled');
     expect(await fs.readFile(executable, 'utf8')).toBe(
@@ -696,6 +731,9 @@ test('Portable update shows progress, cancels and verifies before offering resta
     await expect(
       update.getByRole('button', { name: 'Restart and update', exact: true }),
     ).toBeVisible({ timeout: 15000 });
+    expect(
+      await app.evaluate(() => globalThis.spearResumeStart),
+    ).toBeGreaterThan(0);
     expect(
       (
         await fs.stat(

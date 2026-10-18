@@ -132,10 +132,7 @@ export const TitleBar = (props: TitleBarProps) => {
               if (action === 'pin') setPinned(!!value);
             }}
             style={{
-              background:
-                action === 'pin' && pinned()
-                  ? 'var(--classic-accent, #51708e)'
-                  : 'transparent',
+              background: 'transparent',
               color: 'inherit',
               border: 'none',
               cursor: 'pointer',
@@ -158,7 +155,15 @@ export const TitleBar = (props: TitleBarProps) => {
               stroke-linejoin="round"
               aria-hidden="true"
             >
-              <path d={icon} />
+              <path
+                d={
+                  action === 'pin'
+                    ? pinned()
+                      ? 'M8 3h8l-1 7 4 4H5l4-4Z M12 14v7'
+                      : 'm5 3 16 16M8 3h8l-1 7m-6 0-4 4h9M12 14v7'
+                    : icon
+                }
+              />
             </svg>
           </button>
         ))}

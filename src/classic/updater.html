@@ -206,7 +206,8 @@
         request(
           state.phase === 'ready'
             ? 'install'
-            : state.phase === 'available' || state.phase === 'cancelled'
+            : state.canDownload &&
+                ['available', 'cancelled', 'error'].includes(state.phase)
               ? 'download'
               : 'check',
         );

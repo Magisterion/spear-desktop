@@ -13,6 +13,24 @@ export const skins: Record<
     accentText?: string;
   }
 > = {
+  default: {
+    name: 'Default',
+    accent: '#ffffff',
+    top: '#030303',
+    bottom: '#030303',
+    surface: '#030303',
+    text: '#ffffff',
+    muted: '#aaaaaa',
+    accentText: '#030303',
+  },
+  steel: {
+    name: 'Steel blue',
+    accent: '#c1d6ee',
+    top: '#536981',
+    bottom: '#25374e',
+    surface: '#1b2c42',
+  },
+
   'pixel-night': {
     name: 'Pixel night',
     accent: '#ffcc66',
@@ -43,13 +61,6 @@ export const skins: Record<
     text: '#142b41',
     muted: '#405b72',
     accentText: '#ffffff',
-  },
-  steel: {
-    name: 'Steel blue',
-    accent: '#c1d6ee',
-    top: '#536981',
-    bottom: '#25374e',
-    surface: '#1b2c42',
   },
   retro: {
     name: 'Classic midnight',

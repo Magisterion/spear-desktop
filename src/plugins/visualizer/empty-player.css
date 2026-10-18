@@ -175,3 +175,40 @@
     max-height: var(--spear-media-height) !important;
   }
 }
+
+/* One aligned media viewport, regardless of the selected presentation. */
+.spear-has-visualizer ytmusic-player-page #main-panel {
+  padding: 0 !important;
+  min-height: 0 !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  :is(#player, #player-container, ytmusic-player) {
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  :is(video, #thumbnail, #thumbnail img, #img.yt-img-shadow) {
+  object-fit: contain !important;
+  max-height: 100% !important;
+}
+#spear-visualizer-tools .mini-action {
+  display: none;
+}
+#spear-visualizer-stage.mini #spear-visualizer-tools {
+  left: 8px;
+  right: 8px;
+}
+#spear-visualizer-stage.mini #spear-visualizer-tools .mini-action {
+  display: grid;
+}
+#spear-visualizer-tools .mini-action:first-of-type {
+  margin-left: auto;
+}

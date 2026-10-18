@@ -351,7 +351,7 @@ export function setupClassic(win: BrowserWindow) {
     );
     cssKey = await win.webContents.insertCSS(
       compactCss +
-        `:root { --classic-accent: ${accent}; --classic-top: ${top}; --classic-bottom: ${bottom}; --classic-surface: ${surface}; --shell-radius: ${palette.pixel ? '0px' : '6px'}; --shell-font: ${palette.pixel ? 'monospace' : 'inherit'}; --player-radius: ${contentPalette.pixel ? '0px' : '8px'}; --player-font: ${contentPalette.pixel ? 'monospace' : 'inherit'}; --classic-text: ${palette.text ?? '#edf1f7'}; --player-accent: ${contentPalette.accent}; --player-surface: ${contentPalette.surface}; --player-top: ${contentPalette.top}; --player-bottom: ${contentPalette.bottom}; --player-text: ${contentPalette.text ?? '#edf1f7'}; --player-muted: ${contentPalette.muted ?? '#a9b1bf'}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }` +
+        `:root { --classic-accent: ${accent}; --classic-top: ${top}; --classic-bottom: ${bottom}; --classic-surface: ${surface}; --shell-radius: ${palette.pixel ? '0px' : '6px'}; --shell-font: ${palette.pixel ? 'monospace' : 'inherit'}; --player-radius: ${contentPalette.pixel ? '0px' : '8px'}; --player-font: ${contentPalette.pixel ? 'monospace' : 'inherit'}; --classic-text: ${palette.text ?? '#edf1f7'}; --player-accent: ${contentPalette.accent}; --player-accent-text: ${contentPalette.accentText ?? '#101820'}; --player-surface: ${contentPalette.surface}; --player-top: ${contentPalette.top}; --player-bottom: ${contentPalette.bottom}; --player-text: ${contentPalette.text ?? '#edf1f7'}; --player-muted: ${contentPalette.muted ?? '#a9b1bf'}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }` +
         custom.join('\n'),
     );
   };
@@ -556,7 +556,8 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'upstream')
         return shell.openExternal('https://github.com/pear-devs/pear-desktop');
       if (action === 'restart') return restart();
-      if (action === 'update') return checkPortableUpdate(true);
+      if (action === 'update')
+        return checkPortableUpdate(true, () => settings?.hide());
       if (action === 'minimizeOnAutoStart' && typeof value === 'boolean')
         config.set('options.minimizeOnAutoStart', value);
       if (action === 'tray' && typeof value === 'boolean') {

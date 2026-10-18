@@ -126,7 +126,11 @@ function showUpdates() {
       if (action === 'releases')
         void shell.openExternal(`https://github.com/${repository}/releases`);
       if (action === 'close' && state.phase !== 'installing') window.close();
-      return { ...state, currentVersion: app.getVersion() };
+      return {
+        ...state,
+        canDownload: !!releaseFiles,
+        currentVersion: app.getVersion(),
+      };
     });
     registered = true;
   }
@@ -140,9 +144,7 @@ function showUpdates() {
     height: 335,
     resizable: false,
     maximizable: false,
-    alwaysOnTop: BrowserWindow.getAllWindows().some((win) =>
-      win.isAlwaysOnTop(),
-    ),
+    alwaysOnTop: false,
     show: false,
     backgroundColor: '#17191d',
     title: 'YouTube Music Spear · Updates',
@@ -168,12 +170,16 @@ function showUpdates() {
   void window.loadFile(updatePage);
 }
 
-export async function checkPortableUpdate(manual: boolean) {
+export async function checkPortableUpdate(
+  manual: boolean,
+  onAvailable?: () => void,
+) {
   if (
     checking ||
     ['downloading', 'verifying', 'ready', 'installing'].includes(state.phase)
   ) {
     if (manual) showUpdates();
+    if (state.phase !== 'checking') onAvailable?.();
     return;
   }
   checking = true;
@@ -215,6 +221,7 @@ export async function checkPortableUpdate(manual: boolean) {
           message:
             previousFailure + ' You can retry without downloading again.',
         });
+      onAvailable?.();
       showUpdates();
       return;
     }
@@ -260,6 +267,7 @@ export async function checkPortableUpdate(manual: boolean) {
       );
     releaseFiles = { asset, checksum };
     setState({ phase: 'available', version, total: asset.size, message: '' });
+    onAvailable?.();
     showUpdates();
   } catch (error) {
     setState({
@@ -317,53 +325,105 @@ async function downloadUpdate() {
       throw new Error(
         'The release checksum is invalid. Nothing was installed.',
       );
-    const response = await net.fetch(trustedAsset(asset.browser_download_url), {
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(600000)]),
+    const partial = path.join(updateFolder(), 'partial.json');
+    const identity = JSON.stringify({
+      version: state.version,
+      expected,
+      size: asset.size,
+      url: asset.browser_download_url,
     });
-    if (!response.ok || !response.body)
-      throw new Error(
-        `Could not download the update (HTTP ${response.status}).`,
+    const saved = await readFile(partial, 'utf8').catch(() => '');
+    let offset =
+      saved === identity
+        ? await stat(staged)
+            .then((s) => s.size)
+            .catch(() => 0)
+        : 0;
+    if (offset > asset.size) offset = 0;
+    if (!offset) await writeFile(staged, '');
+    await writeFile(partial, identity, 'utf8');
+    setState({ received: offset });
+    if (offset < asset.size) {
+      const response = await net.fetch(
+        trustedAsset(asset.browser_download_url),
+        {
+          headers: offset ? { Range: `bytes=${offset}-` } : {},
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(600000),
+          ]),
+        },
       );
-    const file = await open(staged, 'w');
-    const reader = response.body.getReader();
-    const hash = createHash('sha256');
-    const start = Date.now();
-    try {
-      while (true) {
-        controller.signal.throwIfAborted();
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (state.received + value.byteLength > asset.size)
+      if (!response.ok || !response.body)
+        throw new Error(
+          `Could not download the update (HTTP ${response.status}). Saved progress is kept.`,
+        );
+      if (response.status === 206) {
+        const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(
+          response.headers.get('content-range') ?? '',
+        );
+        if (
+          !range ||
+          Number(range[1]) !== offset ||
+          Number(range[3]) !== asset.size ||
+          Number(range[2]) !== asset.size - 1
+        ) {
+          await response.body.cancel();
           throw new Error(
-            'The download is larger than the release metadata. Nothing was installed.',
+            'The server returned an unexpected download range. Saved progress is kept.',
           );
-        await file.writeFile(value);
-        hash.update(value);
-        const received = state.received + value.byteLength;
-        setState({
-          received,
-          speed: received / Math.max(0.1, (Date.now() - start) / 1000),
-        });
+        }
+      } else if (response.status === 200) {
+        offset = 0; // The server ignored Range: safely replace, never append a full response.
+        setState({ received: 0 });
+      } else {
+        await response.body.cancel();
+        throw new Error('Unexpected download response.');
       }
-    } finally {
-      await reader.cancel().catch(() => {});
-      await file.close();
+      const file = await open(staged, offset ? 'a' : 'w');
+      const reader = response.body.getReader();
+      const start = Date.now();
+      try {
+        while (true) {
+          controller.signal.throwIfAborted();
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (state.received + value.byteLength > asset.size)
+            throw new Error(
+              'The download is larger than the release metadata.',
+            );
+          await file.writeFile(value);
+          const received = state.received + value.byteLength;
+          setState({
+            received,
+            speed:
+              (received - offset) / Math.max(0.1, (Date.now() - start) / 1000),
+          });
+        }
+      } finally {
+        await reader.cancel().catch(() => {});
+        await file.close();
+      }
     }
     controller.signal.throwIfAborted();
-    setState({ phase: 'verifying' });
-    if (state.received !== asset.size || hash.digest('hex') !== expected)
+    if (state.received !== asset.size)
       throw new Error(
-        'The downloaded file failed verification. Nothing was installed. Please try again.',
+        'Download interrupted. Saved progress is kept; retry to resume.',
       );
+    setState({ phase: 'verifying' });
     const diskHash = createHash('sha256');
     for await (const chunk of createReadStream(staged)) {
       controller.signal.throwIfAborted();
       diskHash.update(chunk as Buffer);
     }
-    if (diskHash.digest('hex') !== expected)
+    if (diskHash.digest('hex') !== expected) {
+      await rm(staged, { force: true });
+      await rm(partial, { force: true });
       throw new Error(
         'The saved file failed verification. Nothing was installed.',
       );
+    }
+    await rm(partial, { force: true });
     const manifest = path.join(updateFolder(), 'verified.json');
     await writeFile(
       manifest + '.tmp',
@@ -382,11 +442,10 @@ async function downloadUpdate() {
         'Portable update verified and saved. Later keeps the download for your next restart.',
     });
   } catch (error) {
-    await rm(staged, { force: true }).catch(() => {});
     setState({
       phase: controller.signal.aborted ? 'cancelled' : 'error',
       message: controller.signal.aborted
-        ? 'Download cancelled. Your current version is unchanged.'
+        ? 'Download cancelled. Saved progress is kept for the next attempt.'
         : error instanceof Error
           ? error.message
           : 'Download failed. Please try again.',

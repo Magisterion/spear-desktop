@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = e2d25a8b6da5a2ec8506c065f0c0774b6ded8e74
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Keep comfortable tray seek-bar spacing")
+          test "$(git rev-parse HEAD^)" = 30d57a7cbaa94c13e4bf7451201c5f496e0eea1e
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add resumable updates and a live rhythm game; refine audio and player UI")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -77,7 +77,7 @@ jobs:
           pnpm exec electron-builder --win portable:x64 -p never --config.directories.output=pack-next --config.extraMetadata.version=$next
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test real portable replacement and restart
-        run: pnpm exec playwright test tests/portable-update.test.js --workers=1 --timeout=240000
+        run: pnpm exec playwright test tests/portable-update.test.js --workers=1 --timeout=240000 --output=updater-test-results
       - name: Checksum
         shell: pwsh
         run: |

@@ -8,6 +8,9 @@ export const audioMotion = {
   high: 0,
   beat: 0,
   active: false,
+  time: 0,
+  bpm: 120,
+  band: 0,
 };
 let context: AudioContext | null = null;
 let currentSource: MediaElementAudioSourceNode | null = null;
@@ -17,6 +20,13 @@ export const getAudioGraph = () =>
     : null;
 let filters: BiquadFilterNode[] = [];
 let input: GainNode | null = null;
+let delay: DelayNode | null = null;
+let gameDelay = 0;
+export function setGameAudioDelay(seconds: number) {
+  gameDelay = Math.max(0, Math.min(2, seconds));
+  if (context && delay)
+    delay.delayTime.setValueAtTime(gameDelay, context.currentTime);
+}
 let gains = frequencies.map(() => 0);
 let enabled = true;
 let sampleTimer: ReturnType<typeof setInterval> | undefined;
@@ -43,6 +53,9 @@ export function initializeAudio(
   source: MediaElementAudioSourceNode,
   video: HTMLVideoElement,
 ) {
+  input?.disconnect();
+  filters.forEach((f) => f.disconnect());
+  delay?.disconnect();
   context = ctx;
   currentSource = source;
   input = ctx.createGain();
@@ -60,7 +73,10 @@ export function initializeAudio(
     tail.connect(filter);
     tail = filter;
   }
-  tail.connect(output);
+  delay = ctx.createDelay(2);
+  delay.delayTime.value = gameDelay;
+  tail.connect(delay);
+  delay.connect(output);
   output.connect(ctx.destination);
   setEqualizer(gains, enabled);
   const analyser = ctx.createAnalyser();
@@ -83,6 +99,7 @@ export function initializeAudio(
   sampleTimer = setInterval(() => {
     const active = !video.paused && !video.ended && ctx.state === 'running';
     audioMotion.active = active;
+    audioMotion.time = ctx.currentTime;
     if (active) {
       analyser.getByteFrequencyData(spectrum);
       analyser.getByteTimeDomainData(waveform);
@@ -101,12 +118,22 @@ export function initializeAudio(
       audioMotion.energy = Math.min(1, Math.sqrt(rms) * 1.7);
       audioMotion.high =
         spectrum.slice(100, 300).reduce((sum, v) => sum + v, 0) / (200 * 255);
+      const bandMeans = [
+        spectrum.slice(1, 6),
+        spectrum.slice(6, 20),
+        spectrum.slice(20, 70),
+        spectrum.slice(70, 250),
+      ].map((b) => b.reduce((sum, v) => sum + v, 0) / b.length);
+      audioMotion.band = bandMeans.indexOf(Math.max(...bandMeans));
       baseline = baseline * 0.94 + audioMotion.bass * 0.06;
       if (
         audioMotion.bass > baseline * 1.14 + 0.035 &&
         performance.now() - lastBeat > 190
       ) {
         audioMotion.beat++;
+        const interval = performance.now() - lastBeat;
+        if (interval > 300 && interval < 1000)
+          audioMotion.bpm = audioMotion.bpm * 0.8 + (60000 / interval) * 0.2;
         lastBeat = performance.now();
       }
     } else {
@@ -114,7 +141,11 @@ export function initializeAudio(
     }
     window.ipcRenderer.send(
       'classic:audio-level',
-      Math.max(audioMotion.bass, audioMotion.energy * 0.8),
+      Math.min(
+        1,
+        Math.max(0, audioMotion.bass - baseline * 0.7) * 3 +
+          audioMotion.energy * 0.15,
+      ),
     );
   }, 40);
   return output;

@@ -362,6 +362,22 @@ export default createPlugin({
           'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',
           fullscreen,
         );
+        const open = makeButton('Open player', 'M3 3h18v18H3zM8 3v18', () => {
+          document
+            .querySelector<HTMLElement>(
+              'ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .middle-controls',
+            )
+            ?.click();
+          void window.ipcRenderer.invoke('classic:navigate', 'show');
+        });
+        open.className = 'mini-action';
+        open.style.marginLeft = 'auto';
+        const expand = makeButton(
+          'Expand mini player',
+          'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',
+          fullscreen,
+        );
+        expand.className = 'mini-action';
         visualizerContainer.append(toolbar);
       }
 

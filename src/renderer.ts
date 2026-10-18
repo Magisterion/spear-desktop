@@ -1,5 +1,6 @@
 import './classic/night-run';
-import { initializeAudio } from './classic/audio';
+import { initializeAudio, setEqualizer } from './classic/audio';
+import { presetConfigs, type Preset } from './plugins/equalizer/presets';
 import i18next from 'i18next';
 import { setTheme } from 'mdui/functions/setTheme.js';
 import 'mdui/mdui.css';
@@ -363,10 +364,41 @@ async function onApiLoaded() {
     },
   );
 
-  const video = document.querySelector('video')!;
+  let video = document.querySelector('video')!;
   const audioContext = new AudioContext();
-  const audioSource = audioContext.createMediaElementSource(video);
-  const audioOutput = initializeAudio(audioContext, audioSource, video);
+  const sources = new WeakMap<HTMLVideoElement, MediaElementAudioSourceNode>();
+  let audioSource = audioContext.createMediaElementSource(video);
+  sources.set(video, audioSource);
+  let audioOutput = initializeAudio(audioContext, audioSource, video);
+  const applyEqualizer = (config: {
+    enabled?: boolean;
+    preset?: string;
+    gains?: number[];
+  }) => {
+    setEqualizer(
+      config.preset === 'custom'
+        ? (config.gains ?? [])
+        : [...(presetConfigs[config.preset as Preset] ?? presetConfigs.flat)],
+      config.enabled !== false,
+    );
+  };
+  applyEqualizer(
+    (await window.ipcRenderer.invoke('peard:get-config', 'equalizer')) as {
+      enabled?: boolean;
+      preset?: string;
+      gains?: number[];
+    },
+  );
+  window.ipcRenderer.on(
+    'config-changed',
+    (
+      _event,
+      id: string,
+      config: { enabled?: boolean; preset?: string; gains?: number[] },
+    ) => {
+      if (id === 'equalizer') applyEqualizer(config);
+    },
+  );
 
   for (const [id, plugin] of Object.entries(getAllLoadedRendererPlugins())) {
     if (typeof plugin.renderer !== 'function') {
@@ -410,6 +442,23 @@ async function onApiLoaded() {
 
   video.addEventListener('loadstart', loadstartListener, { passive: true });
 
+  new MutationObserver(() => {
+    const next = document.querySelector('video');
+    if (!next || next === video) return;
+    video.removeEventListener('playing', audioCanPlayEventDispatcher);
+    video.removeEventListener('loadstart', loadstartListener);
+    audioSource.disconnect();
+    video = next;
+    audioSource =
+      sources.get(video) ?? audioContext.createMediaElementSource(video);
+    sources.set(video, audioSource);
+    audioOutput = initializeAudio(audioContext, audioSource, video);
+    video.addEventListener('playing', audioCanPlayEventDispatcher, {
+      passive: true,
+    });
+    video.addEventListener('loadstart', loadstartListener, { passive: true });
+    audioCanPlayEventDispatcher();
+  }).observe(document.body, { childList: true, subtree: true });
   window.ipcRenderer.send('peard:player-api-loaded');
 
   // Navigate to "Starting page"

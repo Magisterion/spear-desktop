@@ -158,9 +158,6 @@
         color: var(--shell-accent-text, #19212d);
         border-radius: 50%;
       }
-      button[aria-pressed='true'] {
-        outline: 2px solid var(--shell-accent);
-      }
       .controls #play:hover {
         background: #fff;
       }
@@ -288,7 +285,7 @@
       .speaker::after {
         width: 26px;
         height: 26px;
-        transform: scale(calc(0.75 + var(--bass, 0) * 0.48));
+        transform: scale(calc(0.65 + var(--bass, 0) * 0.8));
         box-shadow: 0 0 calc(var(--bass, 0) * 12px) var(--shell-accent);
         transition:
           transform 45ms linear,
@@ -488,6 +485,14 @@
         try {
           const s = await window.classic.request('song');
           $('pin').setAttribute('aria-pressed', String(!!s.trayPinned));
+          $('pin')
+            .querySelector('path')
+            .setAttribute(
+              'd',
+              s.trayPinned
+                ? 'M8 3h8l-1 7 4 4H5l4-4Z M12 14v7'
+                : 'm5 3 16 16M8 3h8l-1 7m-6 0-4 4h9M12 14v7',
+            );
           document.body.dataset.speakers = String(s.animatedSpeakers !== false);
           if (s.paused || Date.now() - audioAt > 250)
             audio(s.paused ? 0 : s.bass);
