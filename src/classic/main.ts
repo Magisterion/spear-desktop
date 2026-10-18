@@ -266,11 +266,19 @@ export function migrateClassicPreferences() {
   );
   config.setPartial('plugins.equalizer', { enabled: true, preset: 'flat' });
   const visualizer = config.get('plugins.visualizer') as
-    | { type?: string }
+    | { type?: string; butterchurn?: { preset?: string } }
     | undefined;
   if (!visualizer?.type || visualizer.type === 'spectrum')
     config.setPartial('plugins.visualizer', {
       type: 'butterchurn',
+      butterchurn: { preset: 'cope + flexi - colorful marble (ghost mix)' },
+    });
+  if (
+    !visualizer?.butterchurn?.preset ||
+    visualizer.butterchurn.preset ===
+      'martin [shadow harlequins shape code] - fata morgana'
+  )
+    config.setPartial('plugins.visualizer', {
       butterchurn: { preset: 'cope + flexi - colorful marble (ghost mix)' },
     });
   config.set('options.classicExperienceVersion', 1);

@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 578f66718ad16dcfca0f94704bae290c9f86fdc7
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Unify audio analysis, themes and visualizer surfaces with Pulsefield")
+          test "$(git rev-parse HEAD^)" = 2714b5c8bf21648b3560d5d52f9d9c74ab382f72
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Upgrade the previous default MilkDrop preset to the colorful palette")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
