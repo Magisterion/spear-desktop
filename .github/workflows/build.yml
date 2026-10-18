@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 30d57a7cbaa94c13e4bf7451201c5f496e0eea1e
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add resumable updates and a live rhythm game; refine audio and player UI")
+          test "$(git rev-parse HEAD^)" = e94645bca8f2eac2a3cc822fcc7f39dc5410709f
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Document rhythm controls and resumable native updates")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
