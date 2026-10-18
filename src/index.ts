@@ -28,7 +28,7 @@ import {
   markRestartNeeded,
   migrateClassicPreferences,
 } from './classic/main';
-import { checkPortableUpdate } from './classic/updater';
+import { checkPortableUpdate, recordPortableLaunch } from './classic/updater';
 import { deepEqual } from 'fast-equals';
 import { parse } from 'node-html-parser';
 import { languageResources } from 'virtual:i18n';
@@ -813,6 +813,7 @@ app.whenReady().then(async () => {
   }
 
   let forceQuit = false;
+  await recordPortableLaunch().catch(() => {});
   app.on('before-quit', () => {
     forceQuit = true;
   });

@@ -55,3 +55,5 @@ Only Windows x64 portable artifacts are published. Branches and pull requests pr
 ## Verification notes
 
 A successful build is not a substitute for Windows testing. Before promoting a release, verify first launch, Google sign-in, audio, tray interaction, settings, each visualizer, downloads and a real update between two versions. Layout patches depend on the upstream web UI and may need maintenance when it changes.
+
+Portable updates use a bundled native Windows helper, with SHA-256 verification before shutdown, atomic executable replacement, a retained download and previous executable, and confirmation from the newly started app. No PowerShell or administrator privileges are required. Diagnostics remain in `data/updates/install-result.json`. CI tests a real portable EXE transition in a folder containing spaces and non-ASCII characters.

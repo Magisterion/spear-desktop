@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import {
   mkdir,
+  copyFile,
   open,
   readFile,
   rm,
@@ -196,13 +197,15 @@ export async function checkPortableUpdate(manual: boolean) {
     const resultFile = path.join(updateFolder(), 'install-result.json');
     const previous = await readFile(resultFile, 'utf8').catch(() => '');
     if (previous) {
-      await rm(resultFile, { force: true });
-      const result = JSON.parse(previous) as { success: boolean };
+      const result = JSON.parse(previous) as {
+        success: boolean;
+        stage?: string;
+        error?: string;
+      };
       if (!result.success) {
         setState({
           phase: 'error',
-          message:
-            'Windows could not replace the executable. Close other copies of Spear and try again, or download the release manually. Your data folder was preserved.',
+          message: `The previous update stopped at ${result.stage ?? 'replacement'}: ${result.error ?? 'Unknown error'}. The verified download and your data were preserved.`,
         });
       }
     }
@@ -407,115 +410,71 @@ async function installUpdate() {
         target: executable,
         hash: verified.hash,
         ready: handshake,
+        version: state.version,
+        launch: path.join(updateFolder(), 'last-launch.json'),
         result: path.join(updateFolder(), 'install-result.json'),
       }),
     ).toString('base64');
-    // Only base64 JSON is interpolated; paths never become PowerShell source.
-    const script = `$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json
-try {
-$sha = [Security.Cryptography.SHA256]::Create()
-$stream = [IO.File]::OpenRead($p.source)
-try { $actualHash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
-finally { $stream.Dispose(); $sha.Dispose() }
-if ($actualHash -ne $p.hash) { throw 'Downloaded file verification failed.' }
-[IO.File]::WriteAllText($p.ready, 'ready')
-$running = Get-Process -Id $p.pid -ErrorAction SilentlyContinue
-if ($running) { $running.WaitForExit() }
-$backup = $p.target + '.previous'
-$installed = $false
-for ($i = 0; $i -lt 60; $i++) {
-  try {
-    if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Force }
-    Move-Item -LiteralPath $p.target -Destination $backup -Force
-    try { Move-Item -LiteralPath $p.source -Destination $p.target -Force }
-    catch { Move-Item -LiteralPath $backup -Destination $p.target -Force; throw }
-    $installed = $true
-    break
-  } catch { Start-Sleep -Seconds 1 }
-}
-[IO.File]::WriteAllText($p.result, (@{success=$installed} | ConvertTo-Json))
-try {
-  if (!(Test-Path -LiteralPath $p.target)) { throw 'The portable executable is missing.' }
-  Start-Process -FilePath $p.target -WorkingDirectory (Split-Path -Parent $p.target) -ErrorAction Stop
-} catch {
-  [IO.File]::WriteAllText($p.result, (@{success=$false} | ConvertTo-Json))
-  Add-Type -AssemblyName System.Windows.Forms
-  [System.Windows.Forms.MessageBox]::Show('Spear could not restart automatically. Start YouTube-Music-Spear.exe manually. Your data folder has been preserved.', 'YouTube Music Spear update') | Out-Null
-}
-} catch {
-  [IO.File]::WriteAllText($p.ready, ('error: ' + $_.Exception.Message))
-  exit 1
-}
-`;
-    const child = spawn(
-      path.join(
-        process.env.SystemRoot || 'C:\\Windows',
-        'System32',
-        'WindowsPowerShell',
-        'v1.0',
-        'powershell.exe',
-      ),
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-WindowStyle',
-        'Hidden',
-        '-EncodedCommand',
-        Buffer.from(script, 'utf16le').toString('base64'),
-      ],
-      {
-        detached: true,
-        stdio: ['ignore', 'ignore', 'pipe'],
-        windowsHide: true,
-        cwd: path.dirname(executable),
-        env: {
-          ...process.env,
-          PSModulePath: path.join(
-            process.env.SystemRoot || 'C:\\Windows',
-            'System32',
-            'WindowsPowerShell',
-            'v1.0',
-            'Modules',
-          ),
-        },
-      },
-    );
-    let startupError = '';
-    child.stderr?.on('data', (chunk: Buffer) => {
-      startupError = (startupError + chunk.toString()).slice(-1500);
+    const helper = path.join(updateFolder(), 'Spear-Update.exe');
+    const bundledHelper = app.isPackaged
+      ? path.join(process.resourcesPath, 'updater', 'Spear-Update.exe')
+      : path.join(app.getAppPath(), 'build', 'updater', 'Spear-Update.exe');
+    await copyFile(bundledHelper, helper);
+    const child = spawn(helper, [payload], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      cwd: path.dirname(executable),
     });
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve);
       child.once('error', reject);
     });
+    child.unref();
     let ready = false;
-    for (let i = 0; i < 600; i++) {
-      const handshakeState = await readFile(handshake, 'utf8').catch(() => '');
-      if (handshakeState.startsWith('error:')) {
-        startupError = handshakeState;
+    let detail = '';
+    for (let i = 0; i < 1200; i++) {
+      const status = (await readFile(handshake, 'utf8')
+        .then((text) => JSON.parse(text))
+        .catch(() => null)) as {
+        state?: string;
+        stage?: string;
+        error?: string;
+      } | null;
+      if (status?.state === 'error') {
+        detail = `${status.stage}: ${status.error}`;
         break;
       }
-      if (handshakeState === 'ready') {
+      if (status?.state === 'ready') {
         ready = true;
         break;
       }
-      if (child.exitCode !== null) break;
+      if (child.exitCode !== null) {
+        detail = `Updater exited with code ${child.exitCode}.`;
+        break;
+      }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     if (!ready) {
       child.kill();
+      const message =
+        detail ||
+        'The native updater did not acknowledge startup within two minutes.';
+      await writeFile(
+        path.join(updateFolder(), 'install-result.json'),
+        JSON.stringify({
+          success: false,
+          stage: 'helper-start',
+          error: message,
+        }),
+      );
       throw new Error(
-        'The portable updater could not start. Spear is still running. ' +
-          (startupError.trim() ||
-            'Windows may have blocked PowerShell, or file verification took too long. Try again or use the release download.'),
+        `${message} Spear is still running and the verified download is preserved. Details: data/updates/install-result.json.`,
       );
     }
-    child.stderr?.destroy();
-    child.unref();
     // Allow the update window to close during the normal application shutdown.
     window?.removeAllListeners('close');
+    setTimeout(() => app.exit(0), 8000).unref();
     app.quit();
   } catch (error) {
     setState({
@@ -526,4 +485,15 @@ try {
           : 'The portable update could not start. Your current version is unchanged.',
     });
   }
+}
+
+/** Receipt lets the independent helper verify the actual new Electron process started. */
+export async function recordPortableLaunch() {
+  if (process.platform !== 'win32' || !process.env.PORTABLE_EXECUTABLE_FILE)
+    return;
+  await mkdir(updateFolder(), { recursive: true });
+  await writeFile(
+    path.join(updateFolder(), 'last-launch.json'),
+    JSON.stringify({ pid: process.pid, version: app.getVersion() }),
+  );
 }

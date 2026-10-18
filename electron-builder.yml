@@ -12,6 +12,9 @@ files:
   - 'node_modules/@ffmpeg.wasm/core-mt/**'
   - '!node_modules/**/*.map'
   - '!node_modules/**/*.ts'
+extraResources:
+  - from: build/updater/Spear-Update.exe
+    to: updater/Spear-Update.exe
 asarUnpack:
   - assets
 win:
