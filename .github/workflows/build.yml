@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 916ce383ed7644ac80d6a4d79968fe35db7e17e7
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Wait for window readiness in startup smoke tests")
+          test "$(git rev-parse HEAD^)" = 5b94ae36e47516ecceeca8e8aa82f5992c096327
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Default missing autostart preference to minimized")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

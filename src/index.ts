@@ -457,7 +457,7 @@ async function createMainWindow() {
     if (
       !config.get('options.firstRunComplete') ||
       !process.argv.includes('--spear-autostart') ||
-      !config.get('options.minimizeOnAutoStart') ||
+      config.get('options.minimizeOnAutoStart') === false ||
       !config.get('options.tray')
     ) {
       win.show();

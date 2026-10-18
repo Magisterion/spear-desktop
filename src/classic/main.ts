@@ -201,7 +201,7 @@ async function snapshot() {
     version: app.getVersion(),
     autoUpdates: config.get('options.autoUpdates'),
     proxy: config.get('options.proxy'),
-    minimizeOnAutoStart: config.get('options.minimizeOnAutoStart'),
+    minimizeOnAutoStart: config.get('options.minimizeOnAutoStart') ?? true,
     tray: config.get('options.tray'),
     appearance: controls(
       options.filter((item) => item.id === 'classic-appearance'),
