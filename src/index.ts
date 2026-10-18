@@ -25,6 +25,7 @@ import is from 'electron-is';
 import unhandled from 'electron-unhandled';
 import {
   setupClassic,
+  closeClassicGame,
   markRestartNeeded,
   migrateClassicPreferences,
 } from './classic/main';
@@ -818,15 +819,17 @@ app.whenReady().then(async () => {
     forceQuit = true;
   });
 
-  if (is.macOS() || config.get('options.tray')) {
-    mainWindow.on('close', (event) => {
-      // Hide the window instead of quitting (quit is available in tray options)
-      if (!forceQuit) {
-        event.preventDefault();
-        mainWindow!.hide();
-      }
-    });
-  }
+  mainWindow.on('close', (event) => {
+    if (forceQuit) return;
+    if (closeClassicGame(mainWindow!)) {
+      event.preventDefault();
+      return;
+    }
+    if (is.macOS() || config.get('options.tray')) {
+      event.preventDefault();
+      mainWindow!.hide();
+    }
+  });
 });
 
 function showUnresponsiveDialog(

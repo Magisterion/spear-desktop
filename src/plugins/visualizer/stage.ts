@@ -22,6 +22,9 @@ export function createVisualizerStage() {
     cover.hidden = !src;
     if (document.fullscreenElement === container) return;
     const player = document.querySelector('ytmusic-player');
+    const playerState = player?.getAttribute('player-ui-state');
+    container.hidden =
+      playerState === 'INACTIVE' || playerState === 'PLAYER_BAR_ONLY';
     const panel = document.querySelector<HTMLElement>(
       'ytmusic-player-page #main-panel',
     );
@@ -35,6 +38,14 @@ export function createVisualizerStage() {
     const parent = expanded ? panel! : document.body;
     if (container.parentElement !== parent) parent.prepend(container);
     container.classList.toggle('mini', !expanded);
+    const action = container.querySelector<HTMLButtonElement>('.player-action');
+    if (action) {
+      action.title = expanded ? 'Minimize player' : 'Open player';
+      action.setAttribute('aria-label', action.title);
+      action
+        .querySelector('path')
+        ?.setAttribute('d', expanded ? 'M4 9l8 7 8-7' : 'M4 15l8-7 8 7');
+    }
     document.documentElement.classList.add('spear-has-visualizer');
     document.documentElement.classList.toggle('spear-show-media', media);
   };

@@ -151,8 +151,6 @@ ytmusic-app-layout,
 ytmusic-player-queue {
   background: var(--player-surface) !important;
 }
-yt-formatted-string,
-ytmusic-app a,
 ytmusic-tab-renderer,
 tp-yt-paper-tab {
   color: var(--player-text) !important;
@@ -176,27 +174,46 @@ ytmusic-player-bar {
   max-width: 100% !important;
 }
 
-/* Filled native actions and selected chips need their own contrasting text. */
-ytmusic-app
-  :is(
-    .yt-spec-button-shape-next--mono.yt-spec-button-shape-next--filled,
-    .yt-spec-button-shape-next--tonal,
-    ytmusic-chip-cloud-chip-renderer[selected],
-    tp-yt-paper-button.ytmusic-button-renderer
-  ) {
-  background: var(--player-accent) !important;
-  color: var(--player-accent-text, #101820) !important;
-  --yt-primary-text-color: var(--player-accent-text, #101820) !important;
+/* Current Music uses camel-case button classes and is-selected chips.
+   Keep a filled surface and its complete label/icon subtree on the same pair. */
+ytmusic-app {
+  --ytmusic-text-primary: var(--player-text) !important;
+  --ytmusic-text-secondary: var(--player-muted) !important;
+  --yt-sys-color-baseline--text-primary: var(--player-text) !important;
+  --yt-sys-color-baseline--text-primary-inverse: var(
+    --player-accent-text
+  ) !important;
 }
 ytmusic-app
   :is(
+    .ytSpecButtonShapeNextMono.ytSpecButtonShapeNextFilled,
+    .ytSpecButtonShapeNextTonal,
+    .yt-spec-button-shape-next--mono.yt-spec-button-shape-next--filled,
+    .yt-spec-button-shape-next--tonal,
+    yt-button-renderer.style-mono-filled,
+    ytmusic-chip-cloud-chip-renderer[is-selected] a,
+    ytmusic-chip-cloud-chip-renderer[chip-style='STYLE_PRIMARY'] a,
+    ytmusic-chip-cloud-chip-renderer[chip-style='STYLE_SECONDARY'] a
+  ) {
+  background: var(--player-accent) !important;
+  color: var(--player-accent-text, #101820) !important;
+  --yt-button-color: var(--player-accent-text, #101820) !important;
+  --yt-endpoint-color: var(--player-accent-text, #101820) !important;
+  --yt-endpoint-hover-color: var(--player-accent-text, #101820) !important;
+}
+ytmusic-app
+  :is(
+    .ytSpecButtonShapeNextFilled,
+    .ytSpecButtonShapeNextTonal,
     .yt-spec-button-shape-next--filled,
     .yt-spec-button-shape-next--tonal,
-    ytmusic-chip-cloud-chip-renderer[selected],
-    tp-yt-paper-button.ytmusic-button-renderer
+    yt-button-renderer.style-mono-filled,
+    ytmusic-chip-cloud-chip-renderer[is-selected] a,
+    ytmusic-chip-cloud-chip-renderer[chip-style='STYLE_PRIMARY'] a,
+    ytmusic-chip-cloud-chip-renderer[chip-style='STYLE_SECONDARY'] a
   )
-  :is(span, yt-formatted-string, a, yt-icon) {
-  color: var(--player-accent-text, #101820) !important;
+  :is(span, yt-formatted-string, a, yt-icon, yt-icon-shape) {
+  color: inherit !important;
 }
 /* The mini guide begins below both the app title and Music navigation bar. */
 ytmusic-app ytmusic-mini-guide-renderer {

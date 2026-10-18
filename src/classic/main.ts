@@ -34,6 +34,21 @@ const pendingRestart = new Set<string>();
 const actions = new Map<string, () => unknown>();
 export const markRestartNeeded = (reason: string) => pendingRestart.add(reason);
 
+/** Close entertainment before ordinary close-to-tray handling can hide the player. */
+export function closeClassicGame(win: BrowserWindow, restore = true) {
+  if (gamePreviousFullscreen === null) return false;
+  const fullscreen = gamePreviousFullscreen;
+  gamePreviousFullscreen = null;
+  win.webContents.send('classic:game-close');
+  win.setFullScreen(fullscreen);
+  if (restore) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+  return true;
+}
+
 function localWindow(width: number, height: number, frame = true) {
   const win = new BrowserWindow({
     width,
@@ -371,6 +386,18 @@ export function setupClassic(win: BrowserWindow) {
     if (popup?.isVisible())
       popup.webContents.send('classic:audio-level', audioLevel);
   });
+  win.webContents.on('before-input-event', (event, input) => {
+    if (
+      input.type === 'keyDown' &&
+      input.key === 'Escape' &&
+      gamePreviousFullscreen !== null
+    ) {
+      event.preventDefault();
+      closeClassicGame(win);
+    }
+  });
+  win.on('hide', () => closeClassicGame(win, false));
+  win.on('minimize', () => closeClassicGame(win, false));
   const openEntertainment = (action: string) => {
     win.show();
     win.focus();
@@ -445,10 +472,7 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home' || action === 'library')
       win.webContents.send('classic:browse', action);
     if (action === 'game' || action === 'visualizer') openEntertainment(action);
-    if (action === 'game-exit' && gamePreviousFullscreen !== null) {
-      win.setFullScreen(gamePreviousFullscreen);
-      gamePreviousFullscreen = null;
-    }
+    if (action === 'game-exit') closeClassicGame(win);
     if (action === 'pin-state') return win.isAlwaysOnTop();
     if (action === 'pin') {
       const pinned = !win.isAlwaysOnTop();
@@ -459,6 +483,8 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'settings') openSettings(win);
     if (action === 'equalizer') openSettings(win, 'Equalizer');
     if (action === 'show') {
+      closeClassicGame(win);
+      if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
     }
@@ -518,7 +544,10 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'next') return getSongControls(win).next();
       if (action === 'previous') return getSongControls(win).previous();
       if (action === 'show') {
+        closeClassicGame(win);
+        if (win.isMinimized()) win.restore();
         win.show();
+        win.focus();
         popup?.hide();
         return;
       }
@@ -556,8 +585,10 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'upstream')
         return shell.openExternal('https://github.com/pear-devs/pear-desktop');
       if (action === 'restart') return restart();
-      if (action === 'update')
-        return checkPortableUpdate(true, () => settings?.hide());
+      if (action === 'update') {
+        settings?.hide();
+        return checkPortableUpdate(true);
+      }
       if (action === 'minimizeOnAutoStart' && typeof value === 'boolean')
         config.set('options.minimizeOnAutoStart', value);
       if (action === 'tray' && typeof value === 'boolean') {

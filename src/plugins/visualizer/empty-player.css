@@ -42,6 +42,7 @@
   position: absolute;
   top: 8px;
   left: 8px;
+  right: 8px;
   display: flex;
   gap: 5px;
   margin: 0;
@@ -131,6 +132,11 @@
   pointer-events: none !important;
 }
 #spear-visualizer-stage:fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
   width: 100vw !important;
   height: 100vh !important;
   max-height: none !important;
@@ -199,16 +205,48 @@
   object-fit: contain !important;
   max-height: 100% !important;
 }
+/* Keep native media in exactly the same viewport as the visualizer. Music's
+   square song-image padding and auto margins otherwise shift the album cover. */
+.spear-has-visualizer ytmusic-player-page #main-panel {
+  height: var(--spear-media-height, 180px) !important;
+  max-height: var(--spear-media-height, 180px) !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  #main-panel
+  :is(#song-image, #song-video) {
+  position: absolute !important;
+  inset: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  #main-panel
+  :is(#thumbnail, #thumbnail img) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+#spear-visualizer-tools .player-action {
+  margin-left: auto;
+}
 #spear-visualizer-tools .mini-action {
   display: none;
-}
-#spear-visualizer-stage.mini #spear-visualizer-tools {
-  left: 8px;
-  right: 8px;
 }
 #spear-visualizer-stage.mini #spear-visualizer-tools .mini-action {
   display: grid;
 }
-#spear-visualizer-tools .mini-action:first-of-type {
-  margin-left: auto;
+#spear-visualizer-stage:fullscreen
+  #spear-visualizer-tools
+  :is(.player-action, .mini-action) {
+  display: none;
+}
+#spear-visualizer-stage[hidden] {
+  display: none !important;
+}
+/* Custom right-hand controls are shared by both presentations. */
+.spear-show-media ytmusic-player .top-row-buttons {
+  visibility: hidden !important;
 }

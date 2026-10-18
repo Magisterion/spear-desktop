@@ -2,7 +2,7 @@
   "name": "spear",
   "desktopName": "com.magisterion.spear",
   "productName": "YouTube Music Spear",
-  "version": "3.12.11",
+  "version": "3.12.12",
   "description": "YouTube Music Spear",
   "main": "./dist/main/index.js",
   "type": "module",

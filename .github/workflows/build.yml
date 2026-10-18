@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = e94645bca8f2eac2a3cc822fcc7f39dc5410709f
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Document rhythm controls and resumable native updates")
+          test "$(git rev-parse HEAD^)" = 3b5269f856870ce1879cbadc199589517002a569
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Fix game exit, restore straight-road driving, and align player controls")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -103,6 +103,7 @@ jobs:
             test-results/spear-update.png
             test-results/spear-pulsefield.png
             test-results/spear-equalizer.png
+            test-results/spear-visualizer-layout.png
           retention-days: 7
   release:
     if: always() && needs.windows.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))

@@ -242,11 +242,11 @@ test('Spear preferences use local IPC and portable data', async () => {
       ytmusic-player-page { margin-left:72px; width:calc(100% - 72px); padding:90px 88px; }
       #columns { display:flex; } #main-panel, #side-panel { width:900px; min-width:900px; }
       #player-container, #player { height:600px; } #player { position:relative; background:#070a12; }
-      #visualizer { width:100%; height:100%; } #side-panel { transform:translateY(500px); }
+      ytmusic-player { display:block; } #visualizer { width:100%; height:100%; } #side-panel { transform:translateY(500px); }
       ${css}</style><ytmusic-app><tp-yt-app-drawer><div id="guide-wrapper"><button>Menu</button></div></tp-yt-app-drawer>
       <ytmusic-app-layout id="layout"><ytmusic-player-page slot="player-page"><div id="columns">
-      <div id="main-panel"><div id="player-container"><div id="player"></div></div>
-      <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button></div></section></div>
+      <div id="main-panel"><div id="player-container"><ytmusic-player id="player" player-ui-state="PLAYER_PAGE"><div id="song-image" style="padding-top:100%"><div id="thumbnail">Album cover</div></div></ytmusic-player></div>
+      <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button><button class="player-action">Player</button><button class="mini-action">Close mini</button></div></section></div>
       <div id="side-panel">Queue</div></div></ytmusic-player-page></ytmusic-app-layout></ytmusic-app>`,
     );
     await app.evaluate(({ BrowserWindow }, file) => {
@@ -305,16 +305,59 @@ test('Spear preferences use local IPC and portable data', async () => {
     await layout.evaluate(() => window.stage.toggleMedia());
     await expect(layout.locator('#visualizer')).toBeVisible();
     await expect(layout.locator('#player-container')).not.toBeVisible();
+    await expect(
+      layout.getByRole('button', { name: 'Minimize player', exact: true }),
+    ).toBeVisible();
+    // Widen the real Electron fixture window and compare the two media rectangles.
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().includes('compact-fixture'))
+        .setSize(1200, 900),
+    );
+    await layout.evaluate(() => window.stage.toggleMedia());
+    await expect
+      .poll(() =>
+        layout.evaluate(() => {
+          const a = document
+            .querySelector('#spear-visualizer-stage')
+            .getBoundingClientRect();
+          const b = document
+            .querySelector('#song-image')
+            .getBoundingClientRect();
+          return (
+            Math.abs(a.x - b.x) +
+            Math.abs(a.y - b.y) +
+            Math.abs(a.width - b.width) +
+            Math.abs(a.height - b.height)
+          );
+        }),
+      )
+      .toBeLessThan(2);
+    await expect(
+      layout.getByRole('button', { name: 'Minimize player', exact: true }),
+    ).toBeVisible();
+    await layout.evaluate(() => window.stage.toggleMedia());
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().includes('compact-fixture'))
+        .setSize(720, 900),
+    );
     await layout.screenshot({
       path: path.join(root, 'test-results/spear-visualizer-layout.png'),
     });
-    await layout.evaluate(() => {
-      const player = document.createElement('ytmusic-player');
-      player.setAttribute('player-ui-state', 'MINIPLAYER');
-      document.body.append(player);
-    });
+    await layout.evaluate(() =>
+      document
+        .querySelector('ytmusic-player')
+        .setAttribute('player-ui-state', 'MINIPLAYER'),
+    );
     await expect(layout.locator('#spear-visualizer-stage')).toHaveClass('mini');
     await expect(layout.locator('#visualizer')).toHaveCSS('height', '180px');
+    await expect(
+      layout.getByRole('button', { name: 'Open player', exact: true }),
+    ).toBeVisible();
+    await expect(
+      layout.getByRole('button', { name: 'Close mini', exact: true }),
+    ).toBeVisible();
     await layout.evaluate(() => {
       document.querySelector('#spear-visualizer-tools button').onclick = () =>
         document.querySelector('#spear-visualizer-stage').requestFullscreen();
@@ -328,7 +371,61 @@ test('Spear preferences use local IPC and portable data', async () => {
         .locator('#visualizer')
         .evaluate((el) => el.getBoundingClientRect().height),
     ).toBeGreaterThan(500);
+    expect(
+      await layout.locator('#spear-visualizer-stage').evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y };
+      }),
+    ).toEqual({ x: 0, y: 0 });
     await layout.evaluate(() => document.exitFullscreen());
+    await layout.evaluate(() => {
+      const app = document.querySelector('ytmusic-app');
+      const area = document.createElement('div');
+      area.id = 'contrast-fixture';
+      area.innerHTML =
+        '<button class="ytSpecButtonShapeNextHost ytSpecButtonShapeNextMono ytSpecButtonShapeNextFilled"><span><yt-formatted-string>Save</yt-formatted-string></span></button><ytmusic-chip-cloud-chip-renderer is-selected chip-style="STYLE_UNKNOWN"><a class="ytmusic-chip-cloud-chip-renderer"><yt-formatted-string>All</yt-formatted-string></a></ytmusic-chip-cloud-chip-renderer>';
+      app.append(area);
+    });
+    for (const palette of [
+      {
+        name: 'Default',
+        accent: '#ffffff',
+        text: '#ffffff',
+        inverse: '#030303',
+      },
+      {
+        name: 'Steel blue',
+        accent: '#c1d6ee',
+        text: '#edf1f7',
+        inverse: '#101820',
+      },
+      {
+        name: 'Classic midnight',
+        accent: '#b5c9eb',
+        text: '#edf1f7',
+        inverse: '#101820',
+      },
+      {
+        name: 'Graphite',
+        accent: '#d1d5db',
+        text: '#edf1f7',
+        inverse: '#101820',
+      },
+    ]) {
+      await layout.evaluate((p) => {
+        const style = document.documentElement.style;
+        style.setProperty('--player-accent', p.accent);
+        style.setProperty('--player-text', p.text);
+        style.setProperty('--player-accent-text', p.inverse);
+      }, palette);
+      const colors = await layout
+        .locator('#contrast-fixture yt-formatted-string')
+        .evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+      expect(colors).toEqual([
+        palette.inverse === '#030303' ? 'rgb(3, 3, 3)' : 'rgb(16, 24, 32)',
+        palette.inverse === '#030303' ? 'rgb(3, 3, 3)' : 'rgb(16, 24, 32)',
+      ]);
+    }
     await layout.close();
     const trayPreload = path.join(temporary, 'tray-preview.cjs');
     await fs.writeFile(
@@ -418,8 +515,13 @@ test('Spear preferences use local IPC and portable data', async () => {
     });
     await game.addScriptTag({
       content: stripTypeScriptTypes(
+        await fs.readFile(path.join(root, 'src/classic/drive.ts'), 'utf8'),
+      ).replaceAll('export ', ''),
+    });
+    await game.addScriptTag({
+      content: stripTypeScriptTypes(
         await fs.readFile(path.join(root, 'src/classic/night-run.ts'), 'utf8'),
-      ).replace(/import[^;]+;/, ''),
+      ).replace(/import[^;]+;/g, ''),
     });
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(
@@ -473,19 +575,20 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect.poll(rms).toBeLessThan(0.15);
     await game.evaluate(() => setEqualizer(Array(10).fill(0), true));
     await expect.poll(rms).toBeGreaterThan(0.24);
-    await game.keyboard.press('d');
-    await expect(game.locator('#score')).toContainText('Energy');
     await game.keyboard.press('r');
     await expect(game.locator('#score')).toContainText('0 pts');
-    await game.evaluate(async () => {
+    await game.evaluate(() => {
       audioMotion.band = 0;
       audioMotion.beat++;
-      await new Promise((resolve) => setTimeout(resolve, 1600));
-      document.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'd', bubbles: true }),
-      );
     });
-    await expect(game.locator('#score')).toContainText(/[1-9][0-9]* pts/);
+    // Physical collection in the center lane, without any timed key press.
+    await expect(game.locator('#score')).toContainText(/[1-9][0-9]* pts/, {
+      timeout: 6000,
+    });
+    await game.evaluate(() => {
+      audioMotion.band = 2;
+      audioMotion.beat++;
+    });
 
     await game.screenshot({
       path: path.join(root, 'test-results/spear-pulsefield.png'),
@@ -501,8 +604,48 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(game.locator('#spear-pulsefield')).toHaveCount(1);
+    await game.evaluate(() => window.gameListeners['classic:game-close']());
+    await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.close();
     const consent = await app.firstWindow();
+    await consent.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'game'),
+    );
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0].isFullScreen(),
+        ),
+      )
+      .toBe(true);
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].close(),
+    );
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => {
+          const w = BrowserWindow.getAllWindows()[0];
+          return w.isVisible() && !w.isFullScreen();
+        }),
+      )
+      .toBe(true);
+    await consent.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'game'),
+    );
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({
+        type: 'keyDown',
+        keyCode: 'Escape',
+      }),
+    );
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ BrowserWindow }) =>
+            !BrowserWindow.getAllWindows()[0].isFullScreen(),
+        ),
+      )
+      .toBe(true);
     await consent.route('https://consent.youtube.com/**', (route) =>
       route.fulfill({
         contentType: 'text/html',
@@ -795,4 +938,48 @@ test('Portable update shows progress, cancels and verifies before offering resta
   } finally {
     await app.close();
   }
+});
+
+// Deterministic physical collisions and progression, independent of the canvas.
+test('Pulseflight collects by position, damages on collision, and keeps running', async () => {
+  const source = stripTypeScriptTypes(
+    await fs.readFile(path.join(root, 'src/classic/drive.ts'), 'utf8'),
+  );
+  const { createDrive } = await import(
+    'data:text/javascript;base64,' + Buffer.from(source).toString('base64')
+  );
+  const drive = createDrive(),
+    run = drive.run;
+  drive.beat(0);
+  for (let i = 0; i < 100; i++) drive.step(0.05, true, 120);
+  expect(run.score).toBe(100);
+  for (let i = 0; i < 20; i++) {
+    run.objects.push({ x: 0, z: 0.879, hazard: false, color: 0 });
+    drive.step(0.05, true, 120);
+  }
+  expect(run.score).toBeGreaterThan(1000);
+  const distance = run.distance;
+  drive.step(0.05, true, 120);
+  expect(run.distance).toBeGreaterThan(distance);
+  run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
+  drive.step(0.05, true, 120);
+  expect(run.shield).toBe(65);
+  expect(run.combo).toBe(0);
+  for (let hit = 0; hit < 2; hit++) {
+    run.invulnerable = 0;
+    run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
+    drive.step(0.05, true, 120);
+  }
+  expect(run.shield).toBe(0);
+  const stopped = run.distance;
+  drive.step(0.05, true, 120);
+  expect(run.distance).toBe(stopped);
+  drive.reset();
+  run.target = 0.66;
+  for (let i = 0; i < 20; i++) drive.step(0.05, false, 120);
+  expect(run.x).toBeGreaterThan(0.6);
+  expect(run.distance).toBe(0);
+  run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
+  drive.step(0.05, true, 120);
+  expect(run.shield).toBe(100);
 });

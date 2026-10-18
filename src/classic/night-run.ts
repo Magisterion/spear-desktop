@@ -1,5 +1,7 @@
-import { audioMotion, setGameAudioDelay } from './audio';
-// Original four-lane rhythm game. Notes are detected before delayed audible playback.
+import { audioMotion } from './audio';
+import { createDrive } from './drive';
+
+// Original artwork and straight-road driving game. No camera roll or borrowed assets.
 let closeGame: (() => void) | null = null;
 function openGame() {
   if (closeGame) return;
@@ -15,61 +17,40 @@ function openGame() {
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent =
-    ':host{font:16px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{max-width:35%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:absolute;left:24px;top:20px;pointer-events:none;color:#fff;background:#071020bb;padding:8px 12px;border-radius:8px}#score{max-width:55%;text-align:right;font-size:14px;position:absolute;right:24px;top:20px;pointer-events:none;color:white;background:#071020bb;padding:8px 12px;border-radius:8px}footer{position:absolute;bottom:12px;left:0;right:0;text-align:center;pointer-events:none;font:14px system-ui;color:#eee}progress{width:70px;height:6px;accent-color:#70f6e4}';
-  const surface = document.createElement('canvas');
-  surface.tabIndex = 0;
-  surface.setAttribute(
+    ':host{font:14px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{position:absolute;left:20px;top:18px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#score{position:absolute;right:20px;top:18px;max-width:52%;text-align:right}#status,#score{pointer-events:none;background:#071020d9;padding:10px 12px;border-radius:8px}footer{position:absolute;bottom:14px;left:12px;right:12px;text-align:center;pointer-events:none;color:#d2e3f3;text-shadow:0 1px 4px #000}progress{width:60px;height:6px;accent-color:#70f6e4}';
+  const canvas = document.createElement('canvas');
+  canvas.tabIndex = 0;
+  canvas.setAttribute(
     'aria-label',
-    'Pulseflight rhythm game. D F J K to hit notes. R to restart. Escape to close.',
+    'Pulseflight. Steer with arrows, A/D or mouse. Collect colored crystals and avoid red barriers. R restarts; Escape returns.',
   );
-  const stateLabel = document.createElement('span');
-  stateLabel.id = 'status';
-  stateLabel.setAttribute('role', 'status');
-  const scoreLabel = document.createElement('span');
-  scoreLabel.id = 'score';
+  const status = document.createElement('span');
+  status.id = 'status';
+  status.setAttribute('role', 'status');
+  const score = document.createElement('span');
+  score.id = 'score';
   const footer = document.createElement('footer');
   footer.textContent =
-    'D F J K · Hit every note on the line · R: restart · Esc: return ';
-  const progress = document.createElement('progress');
-  progress.max = 1;
-  progress.setAttribute('aria-label', 'Music pulse');
-  footer.append(progress);
-  root.append(style, surface, stateLabel, scoreLabel, footer);
+    '← → / A D / mouse: steer · Collect crystals · Avoid red barriers · R: restart · Esc: return ';
+  const meter = document.createElement('progress');
+  meter.max = 1;
+  meter.setAttribute('aria-label', 'Music pulse');
+  footer.append(meter);
+  root.append(style, canvas, status, score, footer);
   document.body.append(host);
-  const canvas = root.querySelector('canvas')!;
   const ctx = canvas.getContext('2d')!;
-  const status = root.querySelector<HTMLElement>('#status')!;
-  const score = root.querySelector<HTMLElement>('#score')!;
-  const meter = root.querySelector('progress')!;
-  const colors = ['#6eec88', '#ffca59', '#fc718e', '#70bcff'];
-  const keys = ['d', 'f', 'j', 'k'];
-  const delay = 1.6;
-  setGameAudioDelay(delay);
+  const drive = createDrive(),
+    run = drive.run;
+  const keys = new Set<string>();
+  const colors = ['#64ebd5', '#ffc964', '#bb8bff', '#70bcff'];
   let width = 960,
     height = 600,
     raf = 0,
-    lastBeat = audioMotion.beat;
-  let points = 0,
-    combo = 0,
-    health = 100,
-    hit = 0,
-    missed = 0,
-    sequence = 0;
-  let previousTime = audioMotion.time;
-  let lastTrack = '',
+    lastTime = performance.now(),
+    lastBeat = audioMotion.beat,
+    lastTrack = '',
     lastMediaTime = 0,
-    feedback = '',
-    feedbackUntil = 0;
-  let notes: { lane: number; at: number }[] = [];
-  const pressed = [0, 0, 0, 0];
-  let flashes: { lane: number; at: number; good: boolean }[] = [];
-  const reset = () => {
-    notes = [];
-    points = combo = hit = missed = sequence = 0;
-    health = 100;
-    feedback = '';
-    lastBeat = audioMotion.beat;
-  };
+    pulse = 0;
   const resize = new ResizeObserver(() => {
     const rect = host.getBoundingClientRect();
     width = Math.max(320, rect.width);
@@ -79,75 +60,87 @@ function openGame() {
     ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
   });
   resize.observe(host);
-  const strike = (lane: number) => {
-    if (!audioMotion.active || health <= 0) return;
-    const now = audioMotion.time;
-    pressed[lane] = now + 0.12;
-    const note = notes
-      .filter((n) => n.lane === lane)
-      .sort((a, b) => Math.abs(a.at - now) - Math.abs(b.at - now))[0];
-    const error = note ? Math.abs(note.at - now) : Infinity;
-    if (note && error <= 0.18) {
-      notes.splice(notes.indexOf(note), 1);
-      combo++;
-      hit++;
-      points +=
-        (error < 0.075 ? 100 : 60) * Math.min(4, 1 + Math.floor(combo / 12));
-      health = Math.min(100, health + 2);
-      feedback = error < 0.075 ? 'PERFECT' : 'GOOD';
-      flashes.push({ lane, at: now, good: true });
-    } else {
-      combo = 0;
-      missed++;
-      health = Math.max(0, health - 5);
-      feedback = 'EARLY / LATE';
-      flashes.push({ lane, at: now, good: false });
-    }
-    feedbackUntil = now + 0.45;
-  };
   const keydown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
-    if (key === 'escape') {
-      event.preventDefault();
-      closeGame?.();
+    if (!['escape', 'r', 'a', 'd', 'arrowleft', 'arrowright'].includes(key))
       return;
-    }
-    if (key === 'r') {
-      event.preventDefault();
-      reset();
-      return;
-    }
-    const lane = keys.indexOf(key);
-    if (lane >= 0) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (!event.repeat) strike(lane);
-    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (key === 'escape') closeGame?.();
+    else if (key === 'r') {
+      drive.reset();
+      lastBeat = audioMotion.beat;
+    } else keys.add(key);
+  };
+  const keyup = (event: KeyboardEvent) => {
+    keys.delete(event.key.toLowerCase());
+  };
+  const blur = () => keys.clear();
+  canvas.onpointermove = (event) => {
+    run.target =
+      document.pointerLockElement === canvas ||
+      root.pointerLockElement === canvas
+        ? Math.max(
+            -0.9,
+            Math.min(
+              0.9,
+              run.target + event.movementX / Math.max(200, width * 0.35),
+            ),
+          )
+        : Math.max(-0.9, Math.min(0.9, (event.clientX / width - 0.5) * 2.6));
   };
   canvas.onpointerdown = (event) => {
-    if (event.pointerType === 'touch') {
-      const lane = Math.floor(
-        (event.clientX - width * 0.25) / ((width * 0.5) / 4),
-      );
-      if (lane >= 0 && lane < 4) strike(lane);
-    } else void canvas.requestPointerLock()?.catch(() => {});
+    if (event.pointerType !== 'touch')
+      void canvas.requestPointerLock()?.catch(() => {});
   };
   document.addEventListener('keydown', keydown, true);
+  document.addEventListener('keyup', keyup, true);
+  window.addEventListener('blur', blur);
   canvas.focus();
   void canvas.requestPointerLock()?.catch(() => {});
   closeGame = () => {
     cancelAnimationFrame(raf);
     resize.disconnect();
     document.removeEventListener('keydown', keydown, true);
-    if (document.pointerLockElement === canvas) document.exitPointerLock();
-    setGameAudioDelay(0);
+    document.removeEventListener('keyup', keyup, true);
+    window.removeEventListener('blur', blur);
+    if (
+      document.pointerLockElement === host ||
+      root.pointerLockElement === canvas
+    )
+      document.exitPointerLock();
     host.remove();
     closeGame = null;
     previousFocus?.focus();
     void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
   };
-  function frame() {
-    const now = audioMotion.time;
+  const project = (x: number, z: number) => {
+    const depth = 0.04 + 0.96 * z * z;
+    return {
+      x: width / 2 + x * width * 0.42 * depth,
+      y: height * (0.24 + 0.65 * depth),
+      scale: depth,
+    };
+  };
+  const polygon = (
+    points: { x: number; y: number }[],
+    fill: string,
+    stroke?: string,
+  ) => {
+    ctx.beginPath();
+    points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  };
+  function frame(time: number) {
+    const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000));
+    lastTime = time;
     const video = document.querySelector('video');
     const track =
       document
@@ -157,140 +150,201 @@ function openGame() {
       track !== lastTrack ||
       (video && Math.abs(video.currentTime - lastMediaTime) > 2)
     ) {
-      reset();
+      drive.reset();
       lastTrack = track;
+      lastBeat = audioMotion.beat;
     }
     lastMediaTime = video?.currentTime ?? 0;
-    const active = audioMotion.active;
-    if (!active)
-      notes.forEach((n) => (n.at += Math.max(0, now - previousTime)));
-    previousTime = now;
-    status.textContent = active
-      ? track || 'Pulseflight'
-      : 'Play music to bring the track to life';
-    const level = 1 + Math.floor(points / 2000);
-    if (active && health > 0 && audioMotion.beat !== lastBeat) {
+    if (keys.has('arrowleft') || keys.has('a'))
+      run.target = Math.max(-0.9, run.target - dt * 2.4);
+    if (keys.has('arrowright') || keys.has('d'))
+      run.target = Math.min(0.9, run.target + dt * 2.4);
+    if (audioMotion.active && audioMotion.beat !== lastBeat) {
+      drive.beat(audioMotion.band);
       lastBeat = audioMotion.beat;
-      const lane = (audioMotion.band + sequence++) % 4;
-      notes.push({ lane, at: now + delay });
-      if (level >= 3 && sequence % 4 === 0)
-        notes.push({ lane: (lane + 2) % 4, at: now + delay });
+      pulse = 1;
     }
-    if (active && health > 0) {
-      for (const note of notes.filter((n) => now - n.at > 0.18)) {
-        missed++;
-        combo = 0;
-        health = Math.max(0, health - 8);
-        flashes.push({ lane: note.lane, at: now, good: false });
-        feedback = 'MISS';
-        feedbackUntil = now + 0.45;
-      }
-      notes = notes.filter((n) => now - n.at <= 0.18);
-    }
+    drive.step(dt, audioMotion.active, audioMotion.bpm);
+    pulse = Math.max(0, pulse - dt * 3);
     ctx.fillStyle = '#060d1b';
     ctx.fillRect(0, 0, width, height);
     const visualizer = document.querySelector<HTMLCanvasElement>('#visualizer');
-    let background = false;
-    if (visualizer && visualizer.width > 0 && visualizer.height > 0) {
+    let hasBackground = false;
+    if (visualizer && visualizer.width && visualizer.height) {
       try {
-        ctx.globalAlpha = 0.36;
+        ctx.globalAlpha = 0.4;
         ctx.drawImage(visualizer, 0, 0, width, height);
-        background = true;
+        hasBackground = true;
       } catch {
       } finally {
         ctx.globalAlpha = 1;
       }
     }
-    if (!background) {
-      for (let i = 0; i < 32; i++) {
-        ctx.strokeStyle = `hsla(${190 + i * 6},75%,65%,${0.1 + audioMotion.energy * 0.2})`;
+    if (!hasBackground) {
+      for (let i = 0; i < 24; i++) {
+        ctx.strokeStyle = `hsla(${185 + i * 6},85%,65%,${0.08 + audioMotion.energy * 0.18})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(
           width / 2,
-          height / 2,
-          30 + i * 18 + Math.sin(now + i) * audioMotion.energy * 24,
+          height * 0.24,
+          30 + i * 22 + pulse * 10,
           0,
           Math.PI * 2,
         );
         ctx.stroke();
       }
     }
-    const left = width * 0.25,
-      laneWidth = (width * 0.5) / 4,
-      top = height * 0.16,
-      line = height * 0.82;
-    ctx.fillStyle = '#050a18cc';
-    ctx.fillRect(left - 10, top - 12, laneWidth * 4 + 20, line - top + 66);
-    for (let i = 0; i < 4; i++) {
-      const x = left + i * laneWidth;
-      ctx.fillStyle = colors[i] + '16';
-      ctx.fillRect(x + 3, top, laneWidth - 6, line - top);
-      ctx.strokeStyle = colors[i];
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x + 6, line);
-      ctx.lineTo(x + laneWidth - 6, line);
-      ctx.stroke();
-      ctx.fillStyle = pressed[i] > now ? colors[i] : '#182333';
-      ctx.fillRect(x + 6, line + 8, laneWidth - 12, 34);
-      ctx.fillStyle = pressed[i] > now ? '#08101b' : colors[i];
-      ctx.font = 'bold 20px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(keys[i].toUpperCase(), x + laneWidth / 2, line + 32);
-    }
-    const travel = Math.max(
-      0.85,
-      Math.min(
-        delay,
-        180 / Math.max(80, Math.min(180, audioMotion.bpm)) -
-          (level - 1) * 0.025,
-      ),
+    // A fixed horizon and fixed camera keep steering free from camera sway.
+    polygon(
+      [
+        project(-1.12, 0),
+        project(1.12, 0),
+        project(1.12, 1),
+        project(-1.12, 1),
+      ],
+      '#040d1ae8',
+      '#51879f',
     );
-    for (const note of notes) {
-      const progress = 1 - (note.at - now) / travel;
-      if (progress < 0) continue;
-      const x = left + note.lane * laneWidth + laneWidth / 2,
-        y = top + (line - top) * progress;
-      ctx.shadowColor = colors[note.lane];
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = colors[note.lane];
-      ctx.fillRect(x - laneWidth * 0.34, y - 7, laneWidth * 0.68, 14);
+    for (const x of [-1, -0.33, 0.33, 1]) {
+      const a = project(x, 0),
+        b = project(x, 1);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = x === -1 || x === 1 ? '#68d4e9' : '#315269';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    for (let i = 0; i < 18; i++) {
+      const z = (i / 18 + run.distance) % 1,
+        a = project(-1, z),
+        b = project(1, z);
+      ctx.strokeStyle = `rgba(92,180,210,${0.12 + z * 0.24})`;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      for (const side of [-1, 1]) {
+        const p = project(side * 1.22, z),
+          h = (12 + audioMotion.bass * 60 + pulse * 20) * p.scale;
+        ctx.fillStyle = colors[i % 4] + '99';
+        ctx.fillRect(p.x - 3 * p.scale, p.y - h, 6 * p.scale, h);
+      }
+    }
+    for (const object of [...run.objects].sort((a, b) => a.z - b.z)) {
+      const p = project(object.x, object.z),
+        size = Math.max(3, width * 0.027 * p.scale);
+      const color = object.hazard ? '#ff526c' : colors[object.color];
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+      if (object.hazard) {
+        polygon(
+          [
+            { x: p.x - size, y: p.y },
+            { x: p.x - size, y: p.y - size * 1.4 },
+            { x: p.x + size, y: p.y - size * 1.4 },
+            { x: p.x + size, y: p.y },
+          ],
+          '#531527',
+          color,
+        );
+        ctx.strokeStyle = '#ffbac6';
+        ctx.beginPath();
+        ctx.moveTo(p.x - size * 0.5, p.y - size * 0.25);
+        ctx.lineTo(p.x + size * 0.5, p.y - size * 1.1);
+        ctx.moveTo(p.x + size * 0.5, p.y - size * 0.25);
+        ctx.lineTo(p.x - size * 0.5, p.y - size * 1.1);
+        ctx.stroke();
+      } else
+        polygon(
+          [
+            { x: p.x, y: p.y - size * 1.8 },
+            { x: p.x + size * 0.7, y: p.y - size * 0.9 },
+            { x: p.x, y: p.y },
+            { x: p.x - size * 0.7, y: p.y - size * 0.9 },
+          ],
+          color,
+          '#e5ffff',
+        );
       ctx.shadowBlur = 0;
     }
-    flashes = flashes.filter((f) => now - f.at < 0.3);
-    for (const flash of flashes) {
-      const p = (now - flash.at) / 0.3;
-      ctx.globalAlpha = 1 - p;
-      ctx.strokeStyle = flash.good ? colors[flash.lane] : '#ff526c';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(
-        left + (flash.lane + 0.5) * laneWidth,
-        line,
-        15 + p * 50,
-        0,
-        Math.PI * 2,
+    const car = project(run.x, 0.88),
+      size = Math.max(15, width * 0.032);
+    if (run.shield > 0) {
+      ctx.globalAlpha =
+        run.invulnerable > 0 ? 0.6 + Math.sin(time * 0.03) * 0.3 : 1;
+      polygon(
+        [
+          { x: car.x - size * 0.45, y: car.y + size * 0.1 },
+          { x: car.x + size * 0.45, y: car.y + size * 0.1 },
+          {
+            x: car.x + size * 0.2,
+            y: car.y + size * (0.9 + audioMotion.bass * 0.7),
+          },
+          {
+            x: car.x - size * 0.2,
+            y: car.y + size * (0.9 + audioMotion.bass * 0.7),
+          },
+        ],
+        '#58dfff88',
       );
-      ctx.stroke();
+      polygon(
+        [
+          { x: car.x, y: car.y - size * 1.5 },
+          { x: car.x + size, y: car.y + size * 0.3 },
+          { x: car.x, y: car.y },
+          { x: car.x - size, y: car.y + size * 0.3 },
+        ],
+        '#8ddfee',
+        '#efffff',
+      );
+      polygon(
+        [
+          { x: car.x, y: car.y - size },
+          { x: car.x + size * 0.3, y: car.y - size * 0.2 },
+          { x: car.x - size * 0.3, y: car.y - size * 0.2 },
+        ],
+        '#19315f',
+      );
       ctx.globalAlpha = 1;
     }
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 25px system-ui';
-    ctx.fillStyle = '#fff';
-    if (health <= 0)
-      ctx.fillText('RUN OVER · Press R to restart', width / 2, height * 0.46);
-    else if (feedbackUntil > now)
-      ctx.fillText(feedback, width / 2, height * 0.12);
-    const accuracy =
-      hit + missed ? Math.round((hit / (hit + missed)) * 100) : 100;
-    score.textContent = `${points} pts · ×${Math.min(4, 1 + Math.floor(combo / 12))} · ${combo} streak · ${accuracy}% · Level ${level} · Energy ${health}`;
+    for (const burst of run.bursts) {
+      const p = project(burst.x, 0.88);
+      for (let i = 0; i < 16; i++) {
+        const a = (i * Math.PI) / 8,
+          d = burst.age * (burst.hazard ? 180 : 100);
+        ctx.globalAlpha = 1 - burst.age / 0.8;
+        ctx.fillStyle = burst.hazard ? '#ff7759' : '#b9ffff';
+        ctx.fillRect(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, 5, 5);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (run.shield <= 0) {
+      ctx.fillStyle = '#071020d9';
+      ctx.fillRect(width * 0.15, height * 0.4, width * 0.7, 100);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('SHIP DESTROYED', width / 2, height * 0.4 + 38);
+      ctx.font = '16px system-ui';
+      ctx.fillText(
+        'Press R to restart · Esc to return',
+        width / 2,
+        height * 0.4 + 72,
+      );
+    }
+    status.textContent = audioMotion.active
+      ? track || 'Pulseflight'
+      : 'Play music to bring the track to life';
+    score.textContent = `${run.score} pts · ×${Math.min(4, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${run.shield} · Level ${1 + Math.floor(run.score / 1500)}`;
     meter.value = Math.max(audioMotion.bass, audioMotion.energy);
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);
 }
 window.ipcRenderer.on('classic:game', openGame);
+window.ipcRenderer.on('classic:game-close', () => closeGame?.());
 window.addEventListener('spear:fullscreen-visualizer', () => {
   closeGame?.();
   document.querySelector<HTMLCanvasElement>('#visualizer')?.click();

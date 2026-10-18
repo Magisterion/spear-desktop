@@ -362,22 +362,31 @@ export default createPlugin({
           'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',
           fullscreen,
         );
-        const open = makeButton('Open player', 'M3 3h18v18H3zM8 3v18', () => {
+        const nativeAction = (selector: string) => {
           document
-            .querySelector<HTMLElement>(
-              'ytmusic-player-bar .thumbnail-image-wrapper, ytmusic-player-bar .middle-controls',
-            )
+            .querySelector<HTMLElement>(`ytmusic-player ${selector}`)
             ?.click();
-          void window.ipcRenderer.invoke('classic:navigate', 'show');
-        });
-        open.className = 'mini-action';
-        open.style.marginLeft = 'auto';
-        const expand = makeButton(
-          'Expand mini player',
-          'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',
-          fullscreen,
+        };
+        const open = makeButton(
+          'Expand or minimize player',
+          'M4 9l8 7 8-7',
+          () => {
+            nativeAction(
+              visualizerContainer.classList.contains('mini')
+                ? '.player-maximize-button'
+                : '.player-minimize-button',
+            );
+          },
         );
-        expand.className = 'mini-action';
+        open.className = 'player-action';
+        const dismiss = makeButton(
+          'Close mini player',
+          'M6 6l12 12M6 18L18 6',
+          () => {
+            nativeAction('.player-close-button');
+          },
+        );
+        dismiss.className = 'mini-action';
         visualizerContainer.append(toolbar);
       }
 

@@ -135,6 +135,7 @@ function showUpdates() {
     registered = true;
   }
   if (window && !window.isDestroyed()) {
+    window.setAlwaysOnTop(false);
     window.show();
     window.focus();
     return;
