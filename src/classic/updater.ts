@@ -417,7 +417,8 @@ $p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) 
 try {
 if ((Get-FileHash -LiteralPath $p.source -Algorithm SHA256).Hash.ToLower() -ne $p.hash) { throw 'Downloaded file verification failed.' }
 [IO.File]::WriteAllText($p.ready, 'ready')
-Wait-Process -Id $p.pid -ErrorAction SilentlyContinue
+$running = Get-Process -Id $p.pid -ErrorAction SilentlyContinue
+if ($running) { $running.WaitForExit() }
 $backup = $p.target + '.previous'
 $installed = $false
 for ($i = 0; $i -lt 60; $i++) {

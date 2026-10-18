@@ -678,8 +678,11 @@ test('Windows portable helper verifies, replaces and relaunches without changing
       helper.once('exit', resolve);
       helper.once('error', reject);
     });
+    const helperStatus = await fs
+      .readFile(ready, 'utf8')
+      .catch(() => 'No startup acknowledgement');
     expect(error).toBe('');
-    expect(exitCode).toBe(0);
+    expect(exitCode, helperStatus).toBe(0);
     expect(await fs.readFile(ready, 'utf8')).toBe('ready');
     expect(JSON.parse(await fs.readFile(result, 'utf8')).success).toBe(true);
     expect(await fs.readFile(target)).toEqual(bytes);
