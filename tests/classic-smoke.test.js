@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -264,59 +265,61 @@ test('Portable update shows progress, cancels and verifies before offering resta
         { timeout: 30000 },
       )
       .toBe(true);
-    await app.evaluate(async ({ net }) => {
-      const { createHash } = await import('node:crypto');
-      const bytes = Buffer.alloc(65536, 42);
-      const hash = createHash('sha256').update(bytes).digest('hex');
-      const original = net.fetch.bind(net);
-      net.fetch = async (url, options) => {
-        const base =
-          'https://github.com/Magisterion/spear-desktop/releases/download/v9.9.9/';
-        if (String(url).endsWith('/releases/latest'))
-          return new Response(
-            JSON.stringify({
-              tag_name: 'v9.9.9',
-              draft: false,
-              prerelease: false,
-              assets: [
-                {
-                  name: 'YouTube-Music-Spear.exe',
-                  size: bytes.length,
-                  browser_download_url: base + 'YouTube-Music-Spear.exe',
+    await app.evaluate(
+      async ({ net }, hash) => {
+        const bytes = Buffer.alloc(65536, 42);
+        const original = net.fetch.bind(net);
+        net.fetch = async (url, options) => {
+          const base =
+            'https://github.com/Magisterion/spear-desktop/releases/download/v9.9.9/';
+          if (String(url).endsWith('/releases/latest'))
+            return new Response(
+              JSON.stringify({
+                tag_name: 'v9.9.9',
+                draft: false,
+                prerelease: false,
+                assets: [
+                  {
+                    name: 'YouTube-Music-Spear.exe',
+                    size: bytes.length,
+                    browser_download_url: base + 'YouTube-Music-Spear.exe',
+                  },
+                  {
+                    name: 'YouTube-Music-Spear.exe.sha256',
+                    size: 64,
+                    browser_download_url:
+                      base + 'YouTube-Music-Spear.exe.sha256',
+                  },
+                ],
+              }),
+            );
+          if (String(url) === base + 'YouTube-Music-Spear.exe.sha256')
+            return new Response(hash);
+          if (String(url) === base + 'YouTube-Music-Spear.exe') {
+            let offset = 0;
+            return new Response(
+              new ReadableStream({
+                async pull(controller) {
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+                  if (options?.signal?.aborted) {
+                    controller.error(new Error('Aborted'));
+                    return;
+                  }
+                  if (offset === bytes.length) {
+                    controller.close();
+                    return;
+                  }
+                  controller.enqueue(bytes.subarray(offset, offset + 4096));
+                  offset += 4096;
                 },
-                {
-                  name: 'YouTube-Music-Spear.exe.sha256',
-                  size: 64,
-                  browser_download_url: base + 'YouTube-Music-Spear.exe.sha256',
-                },
-              ],
-            }),
-          );
-        if (String(url) === base + 'YouTube-Music-Spear.exe.sha256')
-          return new Response(hash);
-        if (String(url) === base + 'YouTube-Music-Spear.exe') {
-          let offset = 0;
-          return new Response(
-            new ReadableStream({
-              async pull(controller) {
-                await new Promise((resolve) => setTimeout(resolve, 150));
-                if (options?.signal?.aborted) {
-                  controller.error(new Error('Aborted'));
-                  return;
-                }
-                if (offset === bytes.length) {
-                  controller.close();
-                  return;
-                }
-                controller.enqueue(bytes.subarray(offset, offset + 4096));
-                offset += 4096;
-              },
-            }),
-          );
-        }
-        return original(url, options);
-      };
-    });
+              }),
+            );
+          }
+          return original(url, options);
+        };
+      },
+      createHash('sha256').update(Buffer.alloc(65536, 42)).digest('hex'),
+    );
     const settingsOpened = app.waitForEvent('window');
     await app.evaluate(({ Menu }) =>
       Menu.getApplicationMenu().items[0].submenu.items[0].click(),
