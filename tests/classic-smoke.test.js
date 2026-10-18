@@ -117,6 +117,51 @@ test('Spear preferences use local IPC and portable data', async () => {
     await settings.screenshot({
       path: path.join(root, 'test-results', 'spear-preferences.png'),
     });
+    const trayPreload = path.join(temporary, 'tray-preview.cjs');
+    await fs.writeFile(
+      trayPreload,
+      "const {contextBridge}=require('electron');contextBridge.exposeInMainWorld('classic',{request:async()=>({title:'A long track title that must stay on one line',artist:'Preview artist',paused:false,elapsed:74,duration:240,artwork:''})});",
+    );
+    const trayOpened = app.waitForEvent('window');
+    await app.evaluate(
+      ({ BrowserWindow }, { preload, page }) => {
+        const win = new BrowserWindow({
+          width: 360,
+          height: 188,
+          frame: false,
+          webPreferences: { preload, contextIsolation: true, sandbox: true },
+        });
+        void win.loadFile(page);
+      },
+      {
+        preload: trayPreload,
+        page: path.join(root, 'src', 'classic', 'tray.html'),
+      },
+    );
+    const tray = await trayOpened;
+    await expect(
+      tray.getByRole('button', { name: 'Exit app', exact: true }),
+    ).toBeVisible();
+    await expect(
+      tray.getByRole('button', { name: 'Open player', exact: true }),
+    ).toBeVisible();
+    await expect(
+      tray.getByRole('button', { name: 'Settings', exact: true }),
+    ).toBeVisible();
+    await expect(
+      tray.getByRole('button', { name: 'Pause', exact: true }),
+    ).toBeVisible();
+    expect(
+      await tray.evaluate(
+        () =>
+          document.documentElement.scrollHeight <= innerHeight &&
+          document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await tray.screenshot({
+      path: path.join(root, 'test-results', 'spear-tray.png'),
+    });
+    await tray.close();
     const consent = await app.firstWindow();
     await consent.route('https://consent.youtube.com/**', (route) =>
       route.fulfill({
@@ -132,7 +177,12 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(consent.locator('#ytmd-title-bar-main-panel')).toHaveCount(0);
     expect(
       await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].getBackgroundColor(),
+        BrowserWindow.getAllWindows()
+          .find((win) =>
+            win.webContents.getURL().startsWith('https://consent.youtube.com/'),
+          )
+          ?.getBackgroundColor()
+          .toLowerCase(),
       ),
     ).toBe('#ffffff');
   } finally {

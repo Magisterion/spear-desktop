@@ -20,6 +20,8 @@ import type { PluginConfig } from '@/types/plugins';
 let settings: BrowserWindow | null = null;
 let popup: BrowserWindow | null = null;
 let song: Partial<SongInfo> = {};
+let artwork = '';
+let artworkImage: SongInfo['image'];
 let player: BrowserWindow;
 const pendingRestart = new Set<string>();
 const actions = new Map<string, () => unknown>();
@@ -70,7 +72,7 @@ export function openSettings(win: BrowserWindow) {
 export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
-    popup = localWindow(380, 210, false);
+    popup = localWindow(360, 188, false);
     popup.on('blur', () => popup?.hide());
     popup.on('closed', () => {
       popup = null;
@@ -82,8 +84,8 @@ export function showTrayPopup(win: BrowserWindow) {
   const cursor = screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint(cursor).workArea;
   popup.setPosition(
-    Math.max(area.x, Math.min(cursor.x - 190, area.x + area.width - 380)),
-    Math.max(area.y, Math.min(cursor.y - 220, area.y + area.height - 210)),
+    Math.max(area.x, Math.min(cursor.x - 180, area.x + area.width - 360)),
+    Math.max(area.y, Math.min(cursor.y - 198, area.y + area.height - 188)),
   );
   popup.show();
   popup.focus();
@@ -211,6 +213,11 @@ export function setupClassic(win: BrowserWindow) {
   player = win;
   registerCallback((info) => {
     song = info;
+    if (info.image !== artworkImage) {
+      artworkImage = info.image;
+      artwork =
+        info.image?.resize({ width: 108, height: 108 }).toDataURL() ?? '';
+    }
   });
   let cssKey: string | undefined;
   const applyStyle = async () => {
@@ -276,10 +283,14 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'song')
         return {
           title: song.title ?? 'Nothing playing',
-          artist: song.artist ?? 'Spear',
+          artist: song.artist ?? 'Start your music',
+          artwork,
+          elapsed: song.elapsedSeconds ?? 0,
+          duration: song.songDuration ?? 0,
           paused: song.isPaused ?? true,
         };
-      if (action === 'playPause') return getSongControls(win).playPause();
+      if (action === 'playPause')
+        return win.webContents.send('classic:tray-play');
       if (action === 'next') return getSongControls(win).next();
       if (action === 'previous') return getSongControls(win).previous();
       if (action === 'show') {
