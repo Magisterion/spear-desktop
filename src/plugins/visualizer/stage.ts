@@ -45,12 +45,20 @@ export function createVisualizerStage() {
     toggleMedia() {
       media = !media;
       container.classList.toggle('media', media);
+      if (media && document.fullscreenElement === container)
+        void document
+          .exitFullscreen()
+          .then(layout)
+          .catch(() => {});
       layout();
       return !media;
     },
     showVisualizer() {
       media = false;
       container.classList.remove('media');
+      container
+        .querySelector('button[aria-pressed]')
+        ?.setAttribute('aria-pressed', 'true');
       document.documentElement.classList.remove('spear-show-media');
     },
     dispose() {
