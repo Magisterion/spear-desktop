@@ -12,8 +12,11 @@ test('Spear preferences use local IPC and portable data', async () => {
     args: [root, '--no-sandbox', '--disable-gpu', ...(process.platform === 'linux' ? ['--headless', '--ozone-platform=headless'] : [])],
     env: { ...process.env, NODE_ENV: 'test', PORTABLE_EXECUTABLE_DIR: temporary },
   });
+  app.process().stdout?.on('data', chunk => console.log(String(chunk)));
+  app.process().stderr?.on('data', chunk => console.error(String(chunk)));
+  app.process().on('exit', (code, signal) => console.log('Electron exited:', code, signal));
   try {
-    await expect.poll(() => app.evaluate(({ Menu }) => !!Menu.getApplicationMenu()), { timeout: 30000 }).toBe(true);
+    await expect.poll(() => app.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items[0]?.label === 'Settings'), { timeout: 30000 }).toBe(true);
     expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(path.join(temporary, 'data'));
     expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible())).toBe(false);
     const opened = app.waitForEvent('window');

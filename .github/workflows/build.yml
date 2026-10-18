@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   normalize-generated-history:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/classic-desktop' && github.event.head_commit.message == 'Finalize Spear preview and normalize generated commit metadata'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/classic-desktop' && startsWith(github.event.head_commit.message, 'Spear preview:')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
-      - name: Normalize only the two generated preview commits
+      - name: Use a service identity for the generated preview commit
         id: normalize
         shell: bash
         env:
@@ -32,12 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          base=fb3923ce4d9ec2998826e51d08337be334eacd84
-          first=cf24c21816e294bf63a0b437e8440e5c5341f7c3
-          test "$(git rev-parse HEAD^)" = "$first"
-          test "$(git rev-parse "$first^")" = "$base"
-          test "$(git rev-list --count "$base..HEAD")" = 2
-          safe=$(git commit-tree "HEAD^{tree}" -p "$base" -m "Build Spear portable desktop with classic controls and categorized preferences")
+          test "$(git rev-parse HEAD^)" = 627122f39efad5e096e7c86c3fd83ad219e9c604
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Harden Spear startup diagnostics and portable checks")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -57,11 +53,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm dist:win:x64
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: pnpm build
       - name: Smoke test local preferences and portable data
         run: pnpm exec playwright test tests/classic-smoke.test.js --workers=1 --timeout=60000
+      - run: pnpm exec electron-builder --win portable:x64 -p never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Checksum
         shell: pwsh
         run: |
