@@ -668,7 +668,20 @@ test('Windows portable helper verifies, replaces and relaunches without changing
       '-EncodedCommand',
       Buffer.from(script, 'utf16le').toString('base64'),
     ],
-    { cwd: temporary, windowsHide: true },
+    {
+      cwd: temporary,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        PSModulePath: path.join(
+          process.env.SystemRoot,
+          'System32',
+          'WindowsPowerShell',
+          'v1.0',
+          'Modules',
+        ),
+      },
+    },
   );
   helper.stderr.on('data', (chunk) => {
     error += chunk;

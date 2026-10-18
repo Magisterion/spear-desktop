@@ -415,7 +415,11 @@ async function installUpdate() {
 $ProgressPreference = 'SilentlyContinue'
 $p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json
 try {
-if ((Get-FileHash -LiteralPath $p.source -Algorithm SHA256).Hash.ToLower() -ne $p.hash) { throw 'Downloaded file verification failed.' }
+$sha = [Security.Cryptography.SHA256]::Create()
+$stream = [IO.File]::OpenRead($p.source)
+try { $actualHash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+finally { $stream.Dispose(); $sha.Dispose() }
+if ($actualHash -ne $p.hash) { throw 'Downloaded file verification failed.' }
 [IO.File]::WriteAllText($p.ready, 'ready')
 $running = Get-Process -Id $p.pid -ErrorAction SilentlyContinue
 if ($running) { $running.WaitForExit() }
@@ -466,6 +470,16 @@ try {
         stdio: ['ignore', 'ignore', 'pipe'],
         windowsHide: true,
         cwd: path.dirname(executable),
+        env: {
+          ...process.env,
+          PSModulePath: path.join(
+            process.env.SystemRoot || 'C:\\Windows',
+            'System32',
+            'WindowsPowerShell',
+            'v1.0',
+            'Modules',
+          ),
+        },
       },
     );
     let startupError = '';
