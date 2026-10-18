@@ -46,11 +46,15 @@ test('Spear preferences use local IPC and portable data', async () => {
     expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(
       path.join(temporary, 'data'),
     );
-    expect(
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].isVisible(),
-      ),
-    ).toBe(true);
+    await expect
+      .poll(
+        () =>
+          app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0].isVisible(),
+          ),
+        { timeout: 20000 },
+      )
+      .toBe(true);
     const opened = app.waitForEvent('window');
     await app.evaluate(({ Menu }) =>
       Menu.getApplicationMenu().items[0].submenu.items[0].click(),
