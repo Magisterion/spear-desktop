@@ -301,6 +301,7 @@ export const mainMenuTemplate = async (
               ],
             },
             {
+              id: 'classic-custom-themes',
               label: t(
                 'main.menu.options.submenu.visual-tweaks.submenu.theme.label',
               ),

@@ -103,20 +103,46 @@ test('Spear preferences use local IPC and portable data', async () => {
         exact: true,
       }),
     ).toBeVisible();
+    await settings.getByRole('button', { name: 'Themes', exact: true }).click();
     await settings
-      .getByRole('button', { name: 'Appearance', exact: true })
-      .click();
-    await settings
-      .getByLabel('Classic skin', { exact: true })
+      .getByLabel('Shell theme', { exact: true })
       .selectOption('amber');
     await expect(
-      settings.getByLabel('Classic skin', { exact: true }),
+      settings.getByLabel('Shell theme', { exact: true }),
     ).toHaveValue('amber');
+    await expect(
+      settings.getByLabel('Player theme', { exact: true }),
+    ).toBeVisible();
+    await settings
+      .getByLabel('Player theme', { exact: true })
+      .selectOption('pixel-night');
+    await expect(
+      settings.getByLabel('Player theme', { exact: true }),
+    ).toHaveValue('pixel-night');
+    await expect(
+      settings.getByLabel('Shell theme', { exact: true }),
+    ).toHaveValue('amber');
+    await settings.screenshot({
+      path: path.join(root, 'test-results', 'spear-themes.png'),
+    });
+    const player = app
+      .windows()
+      .find((w) => w.url().startsWith('https://music.youtube.com'));
+    await player.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'equalizer'),
+    );
+    await expect(
+      settings.getByRole('button', { name: 'Equalizer', exact: true }),
+    ).toHaveAttribute('aria-current', 'true');
+    await expect(
+      settings.getByLabel('Enable Equalizer', { exact: true }),
+    ).toBeVisible();
     await settings.getByRole('searchbox').fill('Visualizer');
     const visualizerType = settings.locator('select').last();
     await expect(visualizerType.locator('option:checked')).toHaveText(
       'spectrum',
     );
+    await expect(visualizerType.locator('option')).toHaveCount(10);
     await visualizerType.selectOption({ label: 'oscilloscope' });
     await expect(visualizerType.locator('option:checked')).toHaveText(
       'oscilloscope',
@@ -137,17 +163,76 @@ test('Spear preferences use local IPC and portable data', async () => {
     await settings.screenshot({
       path: path.join(root, 'test-results', 'spear-preferences.png'),
     });
+    const fixturePath = path.join(temporary, 'compact-fixture.html');
+    const css = await fs.readFile(
+      path.join(root, 'src/classic/compact.css'),
+      'utf8',
+    );
+    await fs.writeFile(
+      fixturePath,
+      `<!doctype html><style>
+      * { box-sizing: border-box; } body { margin:0; background:#151821; color:white; --menu-bar-height:40px; }
+      ytmusic-app, ytmusic-app-layout, ytmusic-player-page { display:block; }
+      tp-yt-app-drawer { position:fixed; top:0; height:100vh; width:72px; background:#303540; }
+      #guide-wrapper { position:relative; } #guide-wrapper button { height:40px; }
+      ytmusic-player-page { margin-left:72px; width:calc(100% - 72px); padding:90px 88px; }
+      #columns { display:flex; } #main-panel, #side-panel { width:900px; min-width:900px; }
+      #player-container, #player { height:600px; } #player { position:relative; background:#070a12; }
+      #visualizer { width:100%; height:100%; } #side-panel { transform:translateY(500px); }
+      ${css}</style><ytmusic-app><tp-yt-app-drawer><div id="guide-wrapper"><button>Menu</button></div></tp-yt-app-drawer>
+      <ytmusic-app-layout id="layout"><ytmusic-player-page slot="player-page"><div id="columns">
+      <div id="main-panel"><div id="player-container"><div id="player"><canvas id="visualizer"></canvas></div></div>
+      <div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button></div></div>
+      <div id="side-panel">Queue</div></div></ytmusic-player-page></ytmusic-app-layout></ytmusic-app>`,
+    );
+    await app.evaluate(({ BrowserWindow }, file) => {
+      const win = new BrowserWindow({ width: 720, height: 900 });
+      void win.loadFile(file);
+    }, fixturePath);
+    const layout = await localWindow(app, 'compact-fixture');
+    await layout.waitForLoadState('domcontentloaded');
+    const boxes = await layout.evaluate(() =>
+      Object.fromEntries(
+        [
+          '#player',
+          '#side-panel',
+          '#spear-visualizer-tools',
+          '#guide-wrapper button',
+        ].map((selector) => {
+          const r = document.querySelector(selector).getBoundingClientRect();
+          return [
+            selector,
+            {
+              left: r.left,
+              right: r.right,
+              top: r.top,
+              bottom: r.bottom,
+              height: r.height,
+            },
+          ];
+        }),
+      ),
+    );
+    expect(boxes['#player'].height).toBe(180);
+    expect(boxes['#player'].right).toBeLessThanOrEqual(720);
+    expect(boxes['#side-panel'].right).toBeLessThanOrEqual(720);
+    expect(boxes['#side-panel'].top).toBeLessThan(300);
+    expect(boxes['#spear-visualizer-tools'].top).toBeGreaterThanOrEqual(
+      boxes['#player'].bottom,
+    );
+    expect(boxes['#guide-wrapper button'].top).toBeGreaterThanOrEqual(40);
+    await layout.close();
     const trayPreload = path.join(temporary, 'tray-preview.cjs');
     await fs.writeFile(
       trayPreload,
-      "const {contextBridge}=require('electron');contextBridge.exposeInMainWorld('classic',{request:async()=>({title:'A long track title that must stay on one line',artist:'Preview artist',paused:false,elapsed:74,duration:240,artwork:''})});",
+      "const {contextBridge}=require('electron');contextBridge.exposeInMainWorld('classic',{request:async()=>({title:'A long track title that must stay on one line',artist:'Preview artist',paused:false,elapsed:74,duration:240,artwork:'',palette:{top:'#39346a',bottom:'#1d1b36',accent:'#ffcc66',pixel:true}})});",
     );
     const trayOpened = app.waitForEvent('window');
     await app.evaluate(
       ({ BrowserWindow }, { preload, page }) => {
         const win = new BrowserWindow({
-          width: 360,
-          height: 188,
+          width: 400,
+          height: 236,
           frame: false,
           webPreferences: { preload, contextIsolation: true, sandbox: true },
         });

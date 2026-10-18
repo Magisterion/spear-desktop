@@ -13,8 +13,8 @@
       }
       body {
         margin: 0;
-        background: #17191d;
-        color: #e4e7ed;
+        background: var(--shell-surface, #17191d);
+        color: var(--shell-text, #e4e7ed);
         font:
           13px 'Segoe UI',
           sans-serif;
@@ -28,7 +28,7 @@
         margin: 0 0 7px;
       }
       p {
-        color: #a9b1bf;
+        color: var(--shell-muted, #a9b1bf);
         margin: 3px 0 6px;
         line-height: 1.5;
       }
@@ -56,7 +56,7 @@
       select {
         font: inherit;
         color: inherit;
-        background: #2b3039;
+        background: var(--shell-bottom, #2b3039);
         border: 1px solid #4b5360;
         border-radius: 5px;
         padding: 8px 12px;
@@ -81,7 +81,7 @@
         flex: 1;
       }
       article {
-        background: #20232a;
+        background: var(--shell-top, #20232a);
         border: 1px solid #383e49;
         border-radius: 7px;
         padding: 10px 12px;
@@ -99,6 +99,20 @@
         max-width: 55%;
         flex-shrink: 0;
         text-overflow: ellipsis;
+      }
+      .theme-previews {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px 0 18px;
+      }
+      .theme-previews button {
+        min-height: 48px;
+        text-align: left;
+      }
+      .theme-previews button[aria-pressed='true'] {
+        outline: 2px solid currentColor;
+        outline-offset: 1px;
       }
       .row {
         min-height: 32px;
@@ -149,9 +163,18 @@
         outline: 2px solid #a9c8f1;
         outline-offset: 2px;
       }
+      body[data-pixel='true'] {
+        font-family: Consolas, monospace;
+      }
+      body[data-pixel='true'] :is(button, select, article, input) {
+        border-radius: 0;
+        box-shadow:
+          inset 2px 2px #ffffff25,
+          inset -2px -2px #00000035;
+      }
       .empty {
         padding: 20px;
-        color: #a9b1bf;
+        color: var(--shell-muted, #a9b1bf);
       }
     </style>
   </head>
@@ -181,6 +204,10 @@
       const categories = [
         'General',
         'Appearance',
+        'Themes',
+        'Album colors',
+        'Visualizers',
+        'Equalizer',
         'Audio',
         'Playback & tools',
         'Lyrics',
@@ -266,6 +293,15 @@
         );
         const palette = data.skins.find((s) => s.id === data.skin);
         if (palette) {
+          document.body.dataset.pixel = String(!!palette.pixel);
+          for (const [key, value] of Object.entries({
+            surface: palette.surface,
+            top: palette.top,
+            bottom: palette.bottom,
+            text: palette.text || '#e4e7ed',
+            muted: palette.muted || '#a9b1bf',
+          }))
+            document.body.style.setProperty('--shell-' + key, value);
           document.body.style.background = palette.surface;
           document.querySelector('header').style.background =
             `linear-gradient(${palette.top}, ${palette.bottom})`;
@@ -334,11 +370,11 @@
           a.append(update);
           content.append(a);
         }
-        if (tab === 'Appearance' && !query) {
+        if (tab === 'Themes' && !query) {
           const a = el('article');
-          a.append(el('h2', 'Classic display'));
+          a.append(el('h2', 'Shell and player themes'));
           const select = el('select');
-          select.setAttribute('aria-label', 'Classic skin');
+          select.setAttribute('aria-label', 'Shell theme');
           data.skins.forEach(({ id, name }) => {
             const o = el('option', name);
             o.value = id;
@@ -346,13 +382,58 @@
           });
           select.value = data.skin;
           select.onchange = () => request('skin', select.value);
+          const row = el('label', 'Shell theme');
+          row.className = 'row';
+          row.append(select);
+          a.append(row);
           a.append(
-            select,
             el(
               'p',
-              'Original color treatments inspired by classic desktop players. Custom CSS themes can be imported below.',
+              'Shell theme colors the title bar, settings and tray widget. Player theme colors the music pages and queue. Album colors can blend with it.',
             ),
           );
+          const playerRow = el('label', 'Player theme');
+          playerRow.className = 'row';
+          const playerSelect = el('select');
+          playerSelect.setAttribute('aria-label', 'Player theme');
+          data.skins.forEach((p) => {
+            const option = el('option', p.name);
+            option.value = p.id;
+            playerSelect.append(option);
+          });
+          playerSelect.value = data.playerTheme;
+          playerSelect.onchange = () =>
+            request('playerTheme', playerSelect.value);
+          playerRow.append(playerSelect);
+          a.append(playerRow);
+          const previews = el('div');
+          previews.className = 'theme-previews';
+          data.skins.forEach((palette) => {
+            const button = el('button', palette.name);
+            button.style.background = `linear-gradient(${palette.top}, ${palette.bottom})`;
+            button.style.borderColor = palette.accent;
+            button.style.color = palette.accent;
+            button.setAttribute(
+              'aria-pressed',
+              String(data.playerTheme === palette.id),
+            );
+            button.onclick = () => request('playerTheme', palette.id);
+            previews.append(button);
+          });
+          a.append(previews);
+          data.appearance
+            .flatMap((c) => c.children || [])
+            .filter((c) => c.menuId === 'classic-custom-themes')
+            .forEach((c) => {
+              a.append(el('h2', 'Custom CSS themes'));
+              c.children
+                .filter(
+                  (x) =>
+                    x.enabled &&
+                    (x.type !== 'normal' || x.label !== 'No theme'),
+                )
+                .forEach((x) => control(x, a));
+            });
           content.append(a);
         }
         if (tab === 'Privacy & network' && !query) {
@@ -383,6 +464,7 @@
           a.append(el('h2', 'Appearance options'));
           data.appearance
             .flatMap((c) => c.children || [c])
+            .filter((c) => c.menuId !== 'classic-custom-themes')
             .filter(
               (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
             )

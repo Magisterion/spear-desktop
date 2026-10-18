@@ -60,24 +60,28 @@ export function openSettings(win: BrowserWindow, tab?: string) {
   player = win;
   if (settings && !settings.isDestroyed()) {
     if (tab) void settings.loadFile(settingsPage, { hash: tab });
-    settings.setAlwaysOnTop(win.isAlwaysOnTop());
+    settings.setAlwaysOnTop(win.isAlwaysOnTop(), 'pop-up-menu');
     settings.show();
     settings.focus();
     return;
   }
   settings = localWindow(940, 720);
-  settings.setAlwaysOnTop(win.isAlwaysOnTop());
+  settings.setParentWindow(win);
+  settings.setAlwaysOnTop(win.isAlwaysOnTop(), 'pop-up-menu');
   settings.on('closed', () => {
     settings = null;
   });
-  settings.once('ready-to-show', () => settings?.show());
+  settings.once('ready-to-show', () => {
+    settings?.show();
+    settings?.focus();
+  });
   settings.loadFile(settingsPage, { hash: tab });
 }
 
 export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
-    popup = localWindow(360, 188, false);
+    popup = localWindow(400, 236, false);
     popup.on('blur', () => popup?.hide());
     popup.on('closed', () => {
       popup = null;
@@ -89,14 +93,17 @@ export function showTrayPopup(win: BrowserWindow) {
   const cursor = screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint(cursor).workArea;
   popup.setPosition(
-    Math.max(area.x, Math.min(cursor.x - 180, area.x + area.width - 360)),
-    Math.max(area.y, Math.min(cursor.y - 198, area.y + area.height - 188)),
+    Math.max(area.x, Math.min(cursor.x - 200, area.x + area.width - 400)),
+    Math.max(area.y, Math.min(cursor.y - 246, area.y + area.height - 236)),
   );
   popup.show();
   popup.focus();
 }
 
 function category(id: string) {
+  if (id === 'album-color-theme') return 'Album colors';
+  if (id === 'visualizer') return 'Visualizers';
+  if (id === 'equalizer') return 'Equalizer';
   if (id === 'keep-listening') return 'Playback & tools';
   if (
     /visual|ambient|theme|blur|transparent|album-color|video|compact|in-app/.test(
@@ -117,6 +124,7 @@ function category(id: string) {
 type Control = {
   id: string;
   label: string;
+  menuId?: string;
   type: string;
   checked?: boolean;
   enabled: boolean;
@@ -150,6 +158,7 @@ function controls(
       {
         id,
         label: item.label ?? '',
+        menuId: item.id,
         type: item.type ?? 'normal',
         checked: item.checked,
         enabled: item.enabled !== false,
@@ -221,7 +230,8 @@ async function snapshot() {
       name: value.translation.language?.['local-name'] ?? id,
     })),
     language: config.get('options.language'),
-    skin: config.get('options.classicSkin'),
+    skin: config.get('options.classicSkin') ?? 'graphite',
+    playerTheme: config.get('options.classicPlayerTheme') ?? 'graphite',
     skins: Object.entries(skins).map(([id, palette]) => ({ id, ...palette })),
     restart: [...pendingRestart],
   };
@@ -249,6 +259,16 @@ export function setupClassic(win: BrowserWindow) {
     const skin = config.get('options.classicSkin');
     const palette = skins[skin] ?? skins.graphite;
     const { accent, top, bottom, surface } = palette;
+    if (
+      process.platform === 'win32' &&
+      (await config.plugins.isEnabled('in-app-menu'))
+    )
+      win.setTitleBarOverlay({
+        color: '#00000000',
+        symbolColor: palette.text ?? '#edf1f7',
+      });
+    const contentPalette =
+      skins[config.get('options.classicPlayerTheme')] ?? skins.graphite;
     const custom = await Promise.all(
       (config.get('options.themes') ?? []).map((file) =>
         readFile(file, 'utf8').catch(() => ''),
@@ -256,7 +276,7 @@ export function setupClassic(win: BrowserWindow) {
     );
     cssKey = await win.webContents.insertCSS(
       compactCss +
-        `:root { --classic-accent: ${accent}; --classic-top: ${top}; --classic-bottom: ${bottom}; --classic-surface: ${surface}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }` +
+        `:root { --classic-accent: ${accent}; --classic-top: ${top}; --classic-bottom: ${bottom}; --classic-surface: ${surface}; --shell-radius: ${palette.pixel ? '0px' : '6px'}; --shell-font: ${palette.pixel ? 'monospace' : 'inherit'}; --player-radius: ${contentPalette.pixel ? '0px' : '8px'}; --player-font: ${contentPalette.pixel ? 'monospace' : 'inherit'}; --classic-text: ${palette.text ?? '#edf1f7'}; --player-accent: ${contentPalette.accent}; --player-surface: ${contentPalette.surface}; --player-top: ${contentPalette.top}; --player-bottom: ${contentPalette.bottom}; --player-text: ${contentPalette.text ?? '#edf1f7'}; --player-muted: ${contentPalette.muted ?? '#a9b1bf'}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }` +
         custom.join('\n'),
     );
   };
@@ -273,6 +293,10 @@ export function setupClassic(win: BrowserWindow) {
       spectrum: 'Classic spectrum',
       oscilloscope: 'Oscilloscope',
       spectrogram: 'Spectrum history',
+      radial: 'Radial spectrum',
+      mirror: 'Mirrored spectrum',
+      starfield: 'Starfield',
+      ribbon: 'Neon ribbon',
     };
     Menu.buildFromTemplate([
       ...Object.entries(names).map(([type, label]) => ({
@@ -284,7 +308,7 @@ export function setupClassic(win: BrowserWindow) {
         click: () => config.setPartial('plugins.visualizer', { type }),
       })),
       { type: 'separator' },
-      { label: 'Equalizer…', click: () => openSettings(win, 'Audio') },
+      { label: 'Equalizer…', click: () => openSettings(win, 'Equalizer') },
     ]).popup({ window: win });
   });
   ipcMain.handle('classic:navigate', (event, action: string) => {
@@ -295,7 +319,7 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
     if (action === 'settings') openSettings(win);
-    if (action === 'equalizer') openSettings(win, 'Audio');
+    if (action === 'equalizer') openSettings(win, 'Equalizer');
     if (action === 'show') {
       win.show();
       win.focus();
@@ -315,6 +339,7 @@ export function setupClassic(win: BrowserWindow) {
           elapsed: song.elapsedSeconds ?? 0,
           duration: song.songDuration ?? 0,
           paused: song.isPaused ?? true,
+          palette: skins[config.get('options.classicSkin')] ?? skins.graphite,
         };
       if (action === 'playPause')
         return win.webContents.send('classic:tray-play');
@@ -374,6 +399,10 @@ export function setupClassic(win: BrowserWindow) {
         config.set('options.classicSkin', value);
         await applyStyle();
       }
+      if (action === 'playerTheme' && Object.hasOwn(skins, String(value))) {
+        config.set('options.classicPlayerTheme', value);
+        await applyStyle();
+      }
       if (action === 'plugin' && typeof value === 'object' && value) {
         const { id, enabled } = value as { id: string; enabled: boolean };
         if (
@@ -397,6 +426,7 @@ export function setupClassic(win: BrowserWindow) {
             pendingRestart.add(key);
         });
         win.setAlwaysOnTop(config.get('options.alwaysOnTop'));
+        settings?.setAlwaysOnTop(win.isAlwaysOnTop(), 'pop-up-menu');
         if (value.startsWith('appearance:')) {
           await applyStyle();
           win.webContents.send('classic:appearance');

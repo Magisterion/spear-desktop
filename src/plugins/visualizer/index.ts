@@ -24,7 +24,11 @@ export type VisualizerPluginConfig = {
     | 'wave'
     | 'spectrum'
     | 'oscilloscope'
-    | 'spectrogram';
+    | 'spectrogram'
+    | 'radial'
+    | 'mirror'
+    | 'starfield'
+    | 'ribbon';
   butterchurn: {
     preset: string;
     blendTimeInSeconds: number;
@@ -152,6 +156,10 @@ export default createPlugin({
       'spectrum',
       'oscilloscope',
       'spectrogram',
+      'radial',
+      'mirror',
+      'starfield',
+      'ribbon',
     ] as const; // For bundling
 
     return [
@@ -232,14 +240,32 @@ export default createPlugin({
           window.ipcRenderer.invoke('classic:visualizer-menu');
         };
         visualizerContainer?.prepend(canvas);
-        const equalizer = document.createElement('button');
-        equalizer.id = 'spear-visualizer-tools';
-        equalizer.textContent = 'EQ';
-        equalizer.title = 'Open equalizer settings';
-        equalizer.setAttribute('aria-label', 'Open equalizer settings');
-        equalizer.onclick = () =>
-          window.ipcRenderer.invoke('classic:navigate', 'equalizer');
-        visualizerContainer.append(equalizer);
+        const toolbar = document.createElement('div');
+        toolbar.id = 'spear-visualizer-tools';
+        toolbar.setAttribute('role', 'toolbar');
+        toolbar.setAttribute('aria-label', 'Visualizer controls');
+        const makeButton = (label: string, action: () => void) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = label;
+          button.onclick = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            action();
+          };
+          toolbar.append(button);
+        };
+        makeButton('Visualizer', () => {
+          void window.ipcRenderer.invoke('classic:visualizer-menu');
+        });
+        makeButton('Equalizer', () => {
+          void window.ipcRenderer.invoke('classic:navigate', 'equalizer');
+        });
+        makeButton('Fullscreen', fullscreen);
+        (
+          visualizerContainer.closest('#player-container') ??
+          visualizerContainer
+        ).after(toolbar);
       }
 
       const gainNode = this.props.audioContext.createGain();
@@ -254,7 +280,17 @@ export default createPlugin({
       } else if (config.type === 'butterchurn') {
         visualizerType = butterchurn;
       }
-      if (['spectrum', 'oscilloscope', 'spectrogram'].includes(config.type))
+      if (
+        [
+          'spectrum',
+          'oscilloscope',
+          'spectrogram',
+          'radial',
+          'mirror',
+          'starfield',
+          'ribbon',
+        ].includes(config.type)
+      )
         visualizerType = ClassicVisualizer;
       this.props.visualizerInstance = new visualizerType(
         this.props.audioContext,

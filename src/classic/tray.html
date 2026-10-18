@@ -19,10 +19,14 @@
         overflow: hidden;
       }
       body {
-        padding: 12px 14px;
-        color: #edf1f7;
-        background: linear-gradient(145deg, #2a2f37, #171a20);
-        border: 1px solid #48505e;
+        padding: 16px 18px;
+        color: var(--shell-text, #edf1f7);
+        background: linear-gradient(
+          145deg,
+          var(--shell-top, #2a2f37),
+          var(--shell-bottom, #171a20)
+        );
+        border: 1px solid var(--shell-accent, #48505e);
         font:
           13px 'Segoe UI',
           sans-serif;
@@ -57,11 +61,11 @@
         justify-content: space-between;
         align-items: center;
         height: 24px;
-        margin-bottom: 9px;
+        margin-bottom: 14px;
       }
       .brand {
         font-size: 11px;
-        color: #9faaba;
+        color: var(--shell-muted, #9faaba);
         letter-spacing: 0.2px;
       }
       .tools {
@@ -69,8 +73,8 @@
         gap: 4px;
       }
       .tools button {
-        width: 28px;
-        height: 26px;
+        width: 32px;
+        height: 30px;
       }
       #quit:hover {
         background: #a63843;
@@ -81,8 +85,8 @@
         align-items: center;
       }
       .cover {
-        width: 54px;
-        height: 54px;
+        width: 64px;
+        height: 64px;
         flex-shrink: 0;
         position: relative;
         display: grid;
@@ -122,27 +126,27 @@
         font-weight: 600;
       }
       p {
-        color: #a6b2c3;
+        color: var(--shell-muted, #a6b2c3);
         line-height: 21px;
         font-size: 12px;
       }
       .controls {
-        height: 44px;
+        height: 56px;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 17px;
-        margin-top: 5px;
+        margin-top: 10px;
       }
       .controls button {
         width: 34px;
         height: 32px;
       }
       .controls #play {
-        width: 38px;
-        height: 38px;
-        background: #dbe6f6;
-        color: #19212d;
+        width: 44px;
+        height: 44px;
+        background: var(--shell-accent, #dbe6f6);
+        color: var(--shell-accent-text, #19212d);
         border-radius: 50%;
       }
       .controls #play:hover {
@@ -157,7 +161,7 @@
         gap: 9px;
         height: 21px;
         font-size: 10px;
-        color: #9caabd;
+        color: var(--shell-muted, #9caabd);
         font-variant-numeric: tabular-nums;
       }
       progress {
@@ -172,8 +176,20 @@
         border-radius: 3px;
       }
       progress::-webkit-progress-value {
-        background: #aebfda;
+        background: var(--shell-accent, #aebfda);
         border-radius: 3px;
+      }
+      body[data-pixel='true'] {
+        font-family: Consolas, monospace;
+        background-image:
+          repeating-linear-gradient(0deg, #00000008 0 1px, transparent 1px 4px),
+          linear-gradient(var(--shell-top), var(--shell-bottom));
+      }
+      body[data-pixel='true'] :is(button, .cover) {
+        border-radius: 0;
+        box-shadow:
+          inset 2px 2px #ffffff25,
+          inset -2px -2px #00000035;
       }
       #status {
         position: absolute;
@@ -302,6 +318,24 @@
         refreshing = true;
         try {
           const s = await window.classic.request('song');
+          if (s.palette) {
+            document.body.dataset.pixel = String(!!s.palette.pixel);
+            document.body.style.setProperty(
+              '--shell-text',
+              s.palette.text || '#edf1f7',
+            );
+            document.body.style.setProperty(
+              '--shell-muted',
+              s.palette.muted || '#a9b1bf',
+            );
+            document.body.style.setProperty(
+              '--shell-accent-text',
+              s.palette.accentText || '#19212d',
+            );
+          }
+          if (s.palette)
+            for (const key of ['top', 'bottom', 'accent'])
+              document.body.style.setProperty('--shell-' + key, s.palette[key]);
           $('title').textContent = s.title;
           $('title').title = s.title;
           $('artist').textContent = s.artist;

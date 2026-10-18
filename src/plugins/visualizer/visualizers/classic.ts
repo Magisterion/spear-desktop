@@ -46,6 +46,77 @@ export class ClassicVisualizer extends Visualizer {
       }
       return;
     }
+    const mode = this.config.type;
+    if (['radial', 'mirror', 'starfield', 'ribbon'].includes(mode)) {
+      this.analyser.getByteFrequencyData(this.samples);
+      const energy =
+        this.samples.subarray(0, 96).reduce((sum, value) => sum + value, 0) /
+        (96 * 255);
+      ctx.fillStyle = mode === 'ribbon' ? 'rgba(5,8,18,0.18)' : '#050812';
+      ctx.fillRect(0, 0, w, h);
+      const t = now / 1000;
+      if (mode === 'radial') {
+        const radius = Math.min(w, h) * 0.22;
+        for (let i = 0; i < 96; i++) {
+          const angle = (i / 96) * Math.PI * 2 + t * 0.1;
+          const level = this.samples[i * 3] / 255;
+          const outer = radius + level * Math.min(w, h) * 0.23;
+          ctx.strokeStyle = `hsl(${i * 3.75 + t * 20} 85% 65%)`;
+          ctx.lineWidth = Math.max(2, w / 350);
+          ctx.beginPath();
+          ctx.moveTo(
+            w / 2 + Math.cos(angle) * radius,
+            h / 2 + Math.sin(angle) * radius,
+          );
+          ctx.lineTo(
+            w / 2 + Math.cos(angle) * outer,
+            h / 2 + Math.sin(angle) * outer,
+          );
+          ctx.stroke();
+        }
+      } else if (mode === 'mirror') {
+        for (let i = 0; i < 64; i++) {
+          const level = this.samples[Math.floor((i / 64) ** 2 * 512)] / 255;
+          const bar = level * h * 0.45;
+          ctx.fillStyle = `hsl(${190 + i * 2 + t * 8} 85% 65%)`;
+          ctx.fillRect(
+            (i * w) / 64 + 1,
+            h / 2 - bar,
+            Math.max(1, w / 64 - 2),
+            bar * 2,
+          );
+        }
+      } else if (mode === 'starfield') {
+        for (let i = 0; i < 160; i++) {
+          const z = ((i * 0.618033 + t * 0.2) % 1) + 0.08;
+          const angle = i * 2.39996;
+          const distance = Math.sqrt((i * 0.754877) % 1) / z;
+          const x = w / 2 + Math.cos(angle) * distance * w * 0.4;
+          const y = h / 2 + Math.sin(angle) * distance * h * 0.4;
+          const size = Math.min(6, (0.5 + energy * 2) / z);
+          ctx.fillStyle = `hsl(${210 + energy * 110} 75% ${Math.min(95, 40 + 40 / z)}%)`;
+          ctx.fillRect(x, y, size, size);
+        }
+      } else {
+        this.analyser.getByteTimeDomainData(this.samples);
+        for (let line = 0; line < 3; line++) {
+          ctx.strokeStyle = `hsl(${t * 35 + line * 70} 90% 65%)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (let i = 0; i < 256; i++) {
+            const x = (i / 255) * w;
+            const y =
+              h / 2 +
+              ((this.samples[i * 4] - 128) / 128) * h * 0.3 +
+              Math.sin(i * 0.025 + t + line) * h * 0.12;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+      }
+      return;
+    }
     ctx.fillStyle = '#080d0a';
     ctx.fillRect(0, 0, w, h);
     if (this.config.type === 'oscilloscope') {

@@ -1,37 +1,52 @@
+/* The expanded YouTube drawer must start below the native app title bar. */
+ytmusic-app #guide-wrapper:not(tp-yt-app-drawer *),
+ytmusic-app tp-yt-app-drawer {
+  top: var(--menu-bar-height, 40px) !important;
+  bottom: 0 !important;
+  height: calc(100vh - var(--menu-bar-height, 40px)) !important;
+}
 @media (max-width: 900px) {
-  /* Keep a dedicated rail: newer YouTube layouts use #mini-guide rather
-     than ytmusic-mini-guide-renderer. Never let content run underneath it. */
-  ytmusic-app {
-    --ytmusic-mini-guide-width: 72px !important;
-  }
-  #layout > #content {
-    margin-left: 72px !important;
-  }
-  ytmusic-player-page {
-    padding: 0 16px 0 88px !important;
-  }
-  ytmusic-player-page:has(#visualizer):not(
+  /* Let YouTube reserve its own mini-guide space. Adding a second left
+     margin or padding here shifts the entire queue off the right edge. */
+  ytmusic-app-layout
+    > ytmusic-player-page[slot='player-page']:has(#visualizer):not(
       :has([player-ui-state='FULLSCREEN'])
     ) {
+    box-sizing: border-box;
+    padding: 0 12px !important;
+    margin-top: var(--menu-bar-height, 40px) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     --ytmusic-player-page-video-height: 180px;
-    --ytmusic-player-page-video-width: 100%;
+  }
+  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+    :is(#columns, #content.ytmusic-player-page) {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
   }
   ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
     #main-panel {
+    box-sizing: border-box;
     padding: 0 !important;
     margin: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
     min-height: 0 !important;
-    height: 214px !important;
-    max-height: 214px !important;
-    flex: 0 0 214px !important;
+    height: 220px !important;
+    max-height: 220px !important;
+    flex: 0 0 220px !important;
   }
   ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
-    #player,
-  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
-    #player-container {
+    :is(#player, #player-container) {
+    box-sizing: border-box;
     height: 180px !important;
     min-height: 0 !important;
     max-height: 180px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
     aspect-ratio: auto !important;
@@ -39,9 +54,14 @@
   }
   ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
     #side-panel {
-    margin-top: 8px !important;
+    box-sizing: border-box;
+    margin: 8px 0 0 !important;
+    padding: 0 !important;
     transform: none !important;
     min-height: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
     flex: 1 1 auto !important;
   }
 }
@@ -51,6 +71,25 @@
     var(--classic-bottom)
   ) !important;
   border-bottom: 1px solid var(--classic-accent);
+  color: var(--classic-text) !important;
+}
+ytmusic-app {
+  --ytmusic-color-black1: var(--player-surface);
+  --ytmusic-color-black2: var(--player-bottom);
+  --ytmusic-color-black3: var(--player-top);
+  --ytmusic-color-black4: var(--player-top);
+  --ytmusic-color-grey1: var(--player-accent);
+  --ytmusic-color-white1: var(--player-text);
+  --ytmusic-color-white2: var(--player-muted);
+  --yt-primary-text-color: var(--player-text);
+  --yt-secondary-text-color: var(--player-muted);
+  --yt-endpoint-color: var(--player-text);
+  color: var(--player-text);
+  background-color: var(--player-surface) !important;
+}
+ytmusic-browse-response,
+ytmusic-player-queue {
+  background-color: var(--player-surface) !important;
 }
 ytmusic-player-bar {
   background: linear-gradient(
@@ -59,17 +98,48 @@ ytmusic-player-bar {
   ) !important;
 }
 yt-formatted-string.title {
-  color: var(--classic-accent) !important;
+  color: var(--player-accent) !important;
 }
 #spear-visualizer-tools {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  z-index: 3;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 4px 0;
+  position: relative;
+  z-index: 5;
+}
+#spear-visualizer-tools button {
   border: 1px solid var(--classic-accent, #a9bdd4);
   border-radius: 4px;
-  padding: 5px 9px;
-  background: #17191de6;
+  min-height: 30px;
+  padding: 4px 12px;
+  background: var(--classic-bottom, #17191d);
   color: #fff;
   cursor: pointer;
+}
+#spear-visualizer-tools button:focus-visible {
+  outline: 2px solid #b8d3fb;
+}
+
+#ytmd-title-bar-main-panel {
+  font-family: var(--shell-font);
+}
+#ytmd-title-bar-main-panel button {
+  border-radius: var(--shell-radius);
+}
+ytmusic-app
+  :is(
+    ytmusic-player-queue-item,
+    ytmusic-responsive-list-item-renderer,
+    ytmusic-chip-cloud-chip-renderer
+  ) {
+  border-radius: var(--player-radius) !important;
+  font-family: var(--player-font);
+}
+ytmusic-player-queue-item .song-title {
+  color: var(--player-accent);
 }

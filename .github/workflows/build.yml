@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 5b94ae36e47516ecceeca8e8aa82f5992c096327
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Default missing autostart preference to minimized")
+          test "$(git rev-parse HEAD^)" = 8f5d003df7ea03841bc88b844e3770e72284c092
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add independent player themes and repair compact controls")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -79,6 +79,7 @@ jobs:
           name: Spear-preferences-preview
           path: |
             test-results/spear-preferences.png
+            test-results/spear-themes.png
             test-results/spear-tray.png
             test-results/spear-update.png
           retention-days: 7

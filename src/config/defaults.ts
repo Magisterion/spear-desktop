@@ -16,6 +16,7 @@ export interface DefaultConfig {
   'options': {
     language?: string;
     classicSkin: string;
+    classicPlayerTheme: string;
     tray: boolean;
     appVisible: boolean;
     firstRunComplete: boolean;
@@ -57,12 +58,13 @@ export const defaultConfig: DefaultConfig = {
   'options': {
     language: 'en',
     classicSkin: 'graphite',
+    classicPlayerTheme: 'graphite',
     tray: true,
     appVisible: false,
     firstRunComplete: false,
     minimizeOnAutoStart: true,
     autoUpdates: true,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     hideMenu: false,
     hideMenuWarned: false,
     startAtLogin: false,
