@@ -58,6 +58,7 @@ export type TitleBarProps = {
   initialCollapsed?: boolean;
 };
 export const TitleBar = (props: TitleBarProps) => {
+  const [pinned, setPinned] = createSignal(false);
   const [mouseY, setMouseY] = createSignal(0);
   const [isMaximized, { refetch: refetchMaximize }] = createResource(
     async () => (await props.ipc.invoke('window-is-maximized')) as boolean,
@@ -72,6 +73,9 @@ export const TitleBar = (props: TitleBarProps) => {
   const handleClose = () => props.ipc.invoke('window-close');
   const listener = (event: MouseEvent) => setMouseY(event.clientY);
   onMount(() => {
+    void window.ipcRenderer
+      .invoke('classic:navigate', 'pin-state')
+      .then((value) => setPinned(!!value));
     window.addEventListener('mousemove', listener);
     props.ipc.on('window-maximize', refetchMaximize);
     props.ipc.on('window-unmaximize', refetchMaximize);
@@ -105,6 +109,7 @@ export const TitleBar = (props: TitleBarProps) => {
               'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 12h2l2-4 2 8 2-4',
               'Fullscreen visualizer',
             ],
+            ['pin', 'M8 3h8l-1 7 4 4H5l4-4Z M12 14v7', 'Always on top'],
             ['back', 'M19 12H5m6-6-6 6 6 6', 'Back'],
             ['forward', 'M5 12h14m-6-6 6 6-6 6', 'Forward'],
             ['home', 'm3 10 9-7 9 7M6 9v12h12V9M10 21v-7h4v7', 'Home'],
@@ -118,11 +123,19 @@ export const TitleBar = (props: TitleBarProps) => {
           <button
             title={label}
             aria-label={label}
-            onClick={() =>
-              window.ipcRenderer.invoke('classic:navigate', action)
-            }
+            aria-pressed={action === 'pin' ? pinned() : undefined}
+            onClick={async () => {
+              const value = await window.ipcRenderer.invoke(
+                'classic:navigate',
+                action,
+              );
+              if (action === 'pin') setPinned(!!value);
+            }}
             style={{
-              background: 'transparent',
+              background:
+                action === 'pin' && pinned()
+                  ? 'var(--classic-accent, #51708e)'
+                  : 'transparent',
               color: 'inherit',
               border: 'none',
               cursor: 'pointer',

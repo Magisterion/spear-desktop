@@ -41,7 +41,7 @@
 #spear-visualizer-stage #spear-visualizer-tools {
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
   display: flex;
   gap: 5px;
   margin: 0;
@@ -153,4 +153,25 @@
 }
 .spear-has-visualizer ytmusic-player-page #main-panel {
   overflow: hidden !important;
+}
+
+/* Give the media its full left column on desktop-sized windows. */
+@media (min-width: 901px) {
+  ytmusic-player-page #main-panel {
+    --spear-media-height: clamp(280px, 52vh, 680px);
+  }
+  ytmusic-player-page #spear-visualizer-stage:not(.mini):not(:fullscreen) {
+    height: var(--spear-media-height);
+    flex-basis: var(--spear-media-height);
+  }
+  .spear-show-media
+    ytmusic-player-page
+    #main-panel
+    > :not(#spear-visualizer-stage),
+  .spear-show-media
+    ytmusic-player-page
+    :is(#player, ytmusic-player, #player-container) {
+    height: var(--spear-media-height) !important;
+    max-height: var(--spear-media-height) !important;
+  }
 }

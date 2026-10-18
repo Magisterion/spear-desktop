@@ -19,6 +19,7 @@ export interface DefaultConfig {
     classicSkin: string;
     classicPlayerTheme: string;
     animatedSpeakers: boolean;
+    trayPinned: boolean;
     tray: boolean;
     appVisible: boolean;
     firstRunComplete: boolean;
@@ -63,6 +64,7 @@ export const defaultConfig: DefaultConfig = {
     classicSkin: 'graphite',
     classicPlayerTheme: 'graphite',
     animatedSpeakers: true,
+    trayPinned: false,
     tray: true,
     appVisible: false,
     firstRunComplete: false,

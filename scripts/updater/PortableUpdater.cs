@@ -5,7 +5,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
-using System.Windows.Forms;
+using System.Reflection;
+
+[assembly: AssemblyTitle("YouTube Music Spear Updater")]
+[assembly: AssemblyDescription("YouTube Music Spear Updater")]
+[assembly: AssemblyProduct("YouTube Music Spear")]
 
 // Runs independently of Electron and the NSIS portable extraction directory.
 internal static class PortableUpdater {
@@ -74,7 +78,6 @@ internal static class PortableUpdater {
         try { Write(p.result, new { success = false, stage, error = e.Message }); } catch { }
         if (!acknowledged) { try { Write(p.ready, new { state = "error", stage, error = e.Message }); } catch { } }
       }
-      if (acknowledged) MessageBox.Show("Update stopped at " + stage + ".\n\n" + e.Message + "\n\nYour data folder has not been removed or had its permissions changed.", "YouTube Music Spear update", MessageBoxButtons.OK, MessageBoxIcon.Error);
       return 1;
     }
   }

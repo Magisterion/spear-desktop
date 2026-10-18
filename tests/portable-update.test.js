@@ -169,3 +169,48 @@ test('native updater rejects a corrupt file before closing the player', async ()
   });
   expect(await fs.readFile(target, 'utf8')).toBe('original');
 });
+
+test('failed relaunch exits the helper and releases the update folder', async () => {
+  test.skip(process.platform !== 'win32');
+  const temporary = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'spear-relaunch-fail-'),
+  );
+  const source = path.join(temporary, 'download.new');
+  const target = path.join(temporary, 'player.exe');
+  const ready = path.join(temporary, 'ready.json');
+  const result = path.join(temporary, 'result.json');
+  const bytes = Buffer.from('Not a Windows executable');
+  await fs.writeFile(source, bytes);
+  await fs.writeFile(target, 'previous executable');
+  const payload = Buffer.from(
+    JSON.stringify({
+      pid: 2147483647,
+      source,
+      target,
+      ready,
+      result,
+      launch: path.join(temporary, 'launch.json'),
+      version: '0.0.1',
+      hash: createHash('sha256').update(bytes).digest('hex'),
+    }),
+  ).toString('base64');
+  const child = spawn(path.join(root, 'build/updater/Spear-Update.exe'), [
+    payload,
+  ]);
+  const exited = new Promise((resolve, reject) => {
+    child.once('exit', resolve);
+    child.once('error', reject);
+  });
+  try {
+    expect(await exited).toBe(1);
+    expect(await readJson(ready)).toMatchObject({ state: 'ready' });
+    expect(await readJson(result)).toMatchObject({
+      success: false,
+      stage: 'relaunch',
+    });
+    await fs.rm(temporary, { recursive: true });
+    await expect(fs.stat(temporary)).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally {
+    child.kill();
+  }
+});

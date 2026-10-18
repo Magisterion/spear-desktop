@@ -87,7 +87,9 @@ export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
     popup = localWindow(480, 320, false);
-    popup.on('blur', () => popup?.hide());
+    popup.on('blur', () => {
+      if (!config.get('options.trayPinned')) popup?.hide();
+    });
     popup.on('closed', () => {
       popup = null;
     });
@@ -239,6 +241,7 @@ async function snapshot() {
     minimizeOnAutoStart: config.get('options.minimizeOnAutoStart') ?? true,
     tray: config.get('options.tray'),
     animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
+    trayPinned: config.get('options.trayPinned') ?? false,
     appearance: controls(
       options.filter((item) => item.id === 'classic-appearance'),
       'appearance',
@@ -446,12 +449,20 @@ export function setupClassic(win: BrowserWindow) {
       win.setFullScreen(gamePreviousFullscreen);
       gamePreviousFullscreen = null;
     }
+    if (action === 'pin-state') return win.isAlwaysOnTop();
+    if (action === 'pin') {
+      const pinned = !win.isAlwaysOnTop();
+      config.set('options.alwaysOnTop', pinned);
+      win.setAlwaysOnTop(pinned);
+      return pinned;
+    }
     if (action === 'settings') openSettings(win);
     if (action === 'equalizer') openSettings(win, 'Equalizer');
     if (action === 'show') {
       win.show();
       win.focus();
     }
+    return undefined;
   });
   ipcMain.handle(
     'classic:local',
@@ -459,6 +470,14 @@ export function setupClassic(win: BrowserWindow) {
       const fromSettings = settings && event.sender === settings.webContents;
       const fromTray = popup && event.sender === popup.webContents;
       if (!fromSettings && !fromTray) throw new Error('Untrusted window');
+      if (action === 'pin' || action === 'trayPinned') {
+        const pinned =
+          typeof value === 'boolean'
+            ? value
+            : !config.get('options.trayPinned');
+        config.set('options.trayPinned', pinned);
+        return pinned;
+      }
       if (action === 'song') {
         // Read the actual media clock; provider time events depend on optional plugins.
         const clock = (await win.webContents
@@ -479,6 +498,7 @@ export function setupClassic(win: BrowserWindow) {
           duration: clock?.duration || song.songDuration || 0,
           paused: clock?.paused ?? song.isPaused ?? true,
           animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
+          trayPinned: config.get('options.trayPinned') ?? false,
           bass: Date.now() - audioLevelAt < 500 ? audioLevel : 0,
           palette: skins[config.get('options.classicSkin')] ?? skins.graphite,
         };

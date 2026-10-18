@@ -140,15 +140,26 @@
         margin-bottom: 12px;
       }
       .controls button {
-        width: 34px;
-        height: 32px;
+        width: 46px;
+        height: 46px;
+      }
+      .controls button svg {
+        width: 24px;
+        height: 24px;
+      }
+      .controls #play svg {
+        width: 28px;
+        height: 28px;
       }
       .controls #play {
-        width: 44px;
-        height: 44px;
+        width: 58px;
+        height: 58px;
         background: var(--shell-accent, #dbe6f6);
         color: var(--shell-accent-text, #19212d);
         border-radius: 50%;
+      }
+      button[aria-pressed='true'] {
+        outline: 2px solid var(--shell-accent);
       }
       .controls #play:hover {
         background: #fff;
@@ -247,7 +258,7 @@
         flex-shrink: 0;
       }
       body {
-        padding: 22px 24px;
+        padding: 16px 24px;
         display: grid;
         grid-template-rows: 32px 72px minmax(64px, 1fr) 28px;
         gap: 12px;
@@ -346,6 +357,22 @@
               stroke="currentColor"
               stroke-width="1.7"
             />
+          </svg>
+        </button>
+        <button
+          id="pin"
+          data-action="pin"
+          title="Keep widget open"
+          aria-label="Keep widget open"
+          aria-pressed="false"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+          >
+            <path d="M8 3h8l-1 7 4 4H5l4-4Z M12 14v7" />
           </svg>
         </button>
         <button
@@ -460,6 +487,7 @@
         refreshing = true;
         try {
           const s = await window.classic.request('song');
+          $('pin').setAttribute('aria-pressed', String(!!s.trayPinned));
           document.body.dataset.speakers = String(s.animatedSpeakers !== false);
           if (s.paused || Date.now() - audioAt > 250)
             audio(s.paused ? 0 : s.bass);

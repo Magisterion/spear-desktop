@@ -14,6 +14,12 @@ export function createVisualizerStage() {
   cover.alt = '';
   container.prepend(cover);
   const layout = () => {
+    const image = document.querySelector<HTMLImageElement>(
+      'ytmusic-player-bar img.image, ytmusic-player-bar img',
+    );
+    const src = image?.currentSrc || image?.src || '';
+    if (src && cover.src !== src) cover.src = src;
+    cover.hidden = !src;
     if (document.fullscreenElement === container) return;
     const player = document.querySelector('ytmusic-player');
     const panel = document.querySelector<HTMLElement>(
@@ -31,12 +37,6 @@ export function createVisualizerStage() {
     container.classList.toggle('mini', !expanded);
     document.documentElement.classList.add('spear-has-visualizer');
     document.documentElement.classList.toggle('spear-show-media', media);
-    const image = document.querySelector<HTMLImageElement>(
-      'ytmusic-player-bar img.image, ytmusic-player-bar img',
-    );
-    const src = image?.currentSrc || image?.src || '';
-    if (src && cover.src !== src) cover.src = src;
-    cover.hidden = !src;
   };
   layout();
   const timer = setInterval(layout, 250);

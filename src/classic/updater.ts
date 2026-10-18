@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import {
   mkdir,
+  mkdtemp,
   copyFile,
   open,
   readFile,
@@ -194,6 +195,7 @@ export async function checkPortableUpdate(manual: boolean) {
       });
       return;
     }
+    let previousFailure = '';
     const resultFile = path.join(updateFolder(), 'install-result.json');
     const previous = await readFile(resultFile, 'utf8').catch(() => '');
     if (previous) {
@@ -203,13 +205,16 @@ export async function checkPortableUpdate(manual: boolean) {
         error?: string;
       };
       if (!result.success) {
-        setState({
-          phase: 'error',
-          message: `The previous update stopped at ${result.stage ?? 'replacement'}: ${result.error ?? 'Unknown error'}. The verified download and your data were preserved.`,
-        });
+        previousFailure = `The previous update stopped at ${result.stage ?? 'replacement'}: ${result.error ?? 'Unknown error'}. The verified download and your data were preserved.`;
+        setState({ phase: 'error', message: previousFailure });
       }
     }
     if (await restoreDownload()) {
+      if (previousFailure)
+        setState({
+          message:
+            previousFailure + ' You can retry without downloading again.',
+        });
       showUpdates();
       return;
     }
@@ -415,7 +420,11 @@ async function installUpdate() {
         result: path.join(updateFolder(), 'install-result.json'),
       }),
     ).toString('base64');
-    const helper = path.join(updateFolder(), 'Spear-Update.exe');
+    // Keep the running helper outside the portable profile so it cannot lock data.
+    const helperFolder = await mkdtemp(
+      path.join(app.getPath('temp'), 'Spear-Updater-'),
+    );
+    const helper = path.join(helperFolder, 'Spear-Update.exe');
     const bundledHelper = app.isPackaged
       ? path.join(process.resourcesPath, 'updater', 'Spear-Update.exe')
       : path.join(app.getAppPath(), 'build', 'updater', 'Spear-Update.exe');
@@ -424,7 +433,7 @@ async function installUpdate() {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
-      cwd: path.dirname(executable),
+      cwd: helperFolder,
     });
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve);

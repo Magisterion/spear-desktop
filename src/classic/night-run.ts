@@ -14,7 +14,7 @@ function openGame() {
   });
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = `*{box-sizing:border-box}:host{font:14px system-ui;color:#effcff}section{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}header,footer{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:12px 24px;background:#0b1426}strong{letter-spacing:3px;color:#79f4ea}#status{flex:1;color:#a9bfd4}button{background:#192c44;color:#fff;border:1px solid #51708e;border-radius:6px;padding:8px 12px;cursor:pointer}canvas{width:100%;height:100%;display:block;min-height:0;touch-action:none}footer{font-size:12px;color:#a9bfd4}#score{margin-left:auto}progress{width:80px;height:8px;accent-color:#79f4ea}`;
+  style.textContent = `*{box-sizing:border-box}:host{font:14px system-ui;color:#effcff}section{position:absolute;inset:0;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto}header,footer{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:12px 24px;background:#0b1426}strong{letter-spacing:3px;color:#79f4ea}#status{flex:1;color:#a9bfd4}button{background:#192c44;color:#fff;border:1px solid #51708e;border-radius:6px;padding:8px 12px;cursor:pointer}canvas{width:100%;height:100%;display:block;min-height:0;touch-action:none;cursor:none}footer{font-size:12px;color:#a9bfd4}#score{margin-left:auto}progress{width:80px;height:8px;accent-color:#79f4ea}`;
   const section = document.createElement('section'),
     header = document.createElement('header'),
     footer = document.createElement('footer');
@@ -38,6 +38,13 @@ function openGame() {
     title,
     status,
     auto,
+    button('Restart', () => {
+      points = 0;
+      hits = 0;
+      combo = 0;
+      elapsed = 0;
+      objects = [];
+    }),
     button('Close · Esc', () => closeGame?.()),
   );
   const canvas = document.createElement('canvas');
@@ -135,9 +142,9 @@ function openGame() {
     const bend = Math.sin(ahead * 0.008) * 0.7 + Math.sin(ahead * 0.021) * 0.24;
     const near =
       Math.sin(distance * 0.008) * 0.7 + Math.sin(distance * 0.021) * 0.24;
-    const hill = Math.sin(ahead * 0.014) * 0.13;
+    const hill = 0;
     return {
-      x: w * 0.5 + (bend - near) * w * 0.48 * (1 - p) + offset * w * 0.31 * p,
+      x: w * 0.5 + (bend - near) * w * 0.1 * (1 - p) + offset * w * 0.31 * p,
       y: h * 0.24 + h * 0.68 * p + hill * h * (1 - p),
       half: w * 0.37 * p,
       p,
@@ -154,7 +161,8 @@ function openGame() {
     boost = Math.max(0, boost - dt);
     cooldown = Math.max(0, cooldown - dt);
     flash = Math.max(0, flash - dt);
-    const speed = active ? 28 + energy * 58 + (boost ? 45 : 0) : 8;
+    const finished = hits >= 5 || points >= 1000;
+    const speed = active && !finished ? 42 + energy * 18 + (boost ? 16 : 0) : 0;
     distance += dt * speed;
     if (keys.has('arrowleft') || keys.has('a'))
       steer = Math.max(-1, steer - dt * 4);
@@ -183,17 +191,23 @@ function openGame() {
         objects = [];
         combo = 0;
         points = 0;
+        hits = 0;
+        elapsed = 0;
       }
       status.textContent = active
         ? track || 'Ride the music'
         : 'Play music to bring the track to life';
     }
     spawnTimer -= dt;
-    if (active && (audioMotion.beat !== lastBeat || spawnTimer <= 0)) {
+    if (
+      active &&
+      !finished &&
+      (audioMotion.beat !== lastBeat || spawnTimer <= 0)
+    ) {
       lastBeat = audioMotion.beat;
       spawnTimer = Math.max(0.35, 1.1 - energy * 0.7);
       objects.push({
-        z: 190,
+        z: 130,
         lane: Math.floor(random() * 3) - 1,
         danger: random() < 0.25,
       });
@@ -310,6 +324,36 @@ function openGame() {
     if (flash) {
       ctx.fillStyle = `rgba(255,70,100,${flash * 0.4})`;
       ctx.fillRect(0, 0, w, h);
+    }
+    // Keep essential game information on the play surface at every window size.
+    ctx.fillStyle = '#071324dd';
+    ctx.fillRect(16, 16, w - 32, 70);
+    ctx.fillStyle = '#e0ffff';
+    ctx.font = 'bold 22px system-ui';
+    ctx.fillText(
+      `${points} / 1000 pts   ×${combo}   Shields ${Math.max(0, 5 - hits)}`,
+      32,
+      45,
+    );
+    ctx.font = '14px system-ui';
+    ctx.fillText(
+      finished
+        ? points >= 1000
+          ? 'Track cleared! Restart for another run.'
+          : 'Run over. Press Restart to try again.'
+        : 'Collect cyan · Avoid coral · Space: shield boost',
+      32,
+      70,
+    );
+    for (let i = 0; i < 24; i++) {
+      const level = (0.2 + 0.8 * Math.abs(Math.sin(i * 1.8 + clock))) * energy;
+      ctx.fillStyle = `hsla(${170 + i * 5}, 85%, 65%, 0.55)`;
+      ctx.fillRect(
+        (i * w) / 24,
+        h * 0.48 - level * h * 0.15,
+        w / 24 - 5,
+        level * h * 0.15,
+      );
     }
     meter.value = Math.max(bass, energy);
     score.textContent = `${Math.floor(elapsed)} s · ${points} pts · ×${combo} · Hits ${hits} · Boost ${cooldown ? 'charging' : 'ready'}`;

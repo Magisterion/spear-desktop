@@ -162,3 +162,16 @@ ytmusic-item-section-renderer #header {
   background: var(--player-top) !important;
   border-radius: var(--player-radius) !important;
 }
+
+/* Preserve contrast for text nested inside native filled buttons. */
+ytmusic-app :is(button, a.yt-spec-button-shape-next) yt-formatted-string {
+  color: inherit !important;
+}
+ytmusic-player-queue-item :is(.byline, .duration, #byline, #duration),
+ytmusic-player-queue-item :is(.byline, #byline) :is(a, yt-formatted-string) {
+  color: var(--player-muted) !important;
+}
+ytmusic-player-bar {
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+}
