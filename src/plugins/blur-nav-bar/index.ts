@@ -7,6 +7,7 @@ export default createPlugin({
   name: () => t('plugins.blur-nav-bar.name'),
   description: () => t('plugins.blur-nav-bar.description'),
   restartNeeded: false,
+  config: { enabled: true },
   renderer: {
     styleSheet: null as CSSStyleSheet | null,
 

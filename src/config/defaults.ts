@@ -19,6 +19,7 @@ export interface DefaultConfig {
     tray: boolean;
     appVisible: boolean;
     firstRunComplete: boolean;
+    minimizeOnAutoStart: boolean;
     autoUpdates: boolean;
     alwaysOnTop: boolean;
     hideMenu: boolean;
@@ -59,8 +60,9 @@ export const defaultConfig: DefaultConfig = {
     tray: true,
     appVisible: false,
     firstRunComplete: false,
+    minimizeOnAutoStart: true,
     autoUpdates: true,
-    alwaysOnTop: false,
+    alwaysOnTop: true,
     hideMenu: false,
     hideMenuWarned: false,
     startAtLogin: false,

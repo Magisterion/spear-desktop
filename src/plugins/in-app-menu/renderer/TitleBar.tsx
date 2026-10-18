@@ -90,11 +90,19 @@ export const TitleBar = (props: TitleBarProps) => {
       >
         {(
           [
-            ['back', '←', 'Back'],
-            ['forward', '→', 'Forward'],
-            ['home', '⌂', 'Home'],
-            ['library', '♫', 'Library'],
-            ['settings', '⚙', 'Settings'],
+            [
+              'settings',
+              'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z',
+              'Settings',
+            ],
+            ['back', 'M19 12H5m6-6-6 6 6 6', 'Back'],
+            ['forward', 'M5 12h14m-6-6 6 6-6 6', 'Forward'],
+            ['home', 'm3 10 9-7 9 7M6 9v12h12V9M10 21v-7h4v7', 'Home'],
+            [
+              'library',
+              'M9 18V5l11-2v13M9 8l11-2M9 18a3 2 0 1 1-6 0 3 2 0 1 1 6 0M20 16a3 2 0 1 1-6 0 3 2 0 1 1 6 0',
+              'Library',
+            ],
           ] as const
         ).map(([action, icon, label]) => (
           <button
@@ -109,10 +117,26 @@ export const TitleBar = (props: TitleBarProps) => {
               border: 'none',
               cursor: 'pointer',
               'font-size': '18px',
-              padding: '0 8px',
+              padding: '6px',
+              width: '34px',
+              height: '32px',
+              display: 'grid',
+              'place-items': 'center',
             }}
           >
-            {icon}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d={icon} />
+            </svg>
           </button>
         ))}
       </div>

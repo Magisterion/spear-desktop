@@ -55,7 +55,9 @@ window.ipcRenderer.on('classic:tray-play', async () => {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
       // Only search the liked-songs page, never a recommendation elsewhere.
-      const page = document.querySelector('ytmusic-browse-response[browse-id="FEmusic_liked_videos"]');
+      const page = document.querySelector(
+        'ytmusic-browse-response[browse-id="FEmusic_liked_videos"]',
+      );
       const play = page?.querySelector<HTMLElement>(
         'ytmusic-responsive-list-item-renderer ytmusic-play-button-renderer',
       );
@@ -63,7 +65,7 @@ window.ipcRenderer.on('classic:tray-play', async () => {
         play.click();
         return;
       }
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
     // A signed-out account or empty library needs the user's attention.
     await window.ipcRenderer.invoke('classic:navigate', 'show');
@@ -402,6 +404,16 @@ async function onApiLoaded() {
       ?.navigate(startingPages[startingPage]);
   }
 
+  applyAppearanceOptions();
+}
+
+function applyAppearanceOptions() {
+  for (const id of [
+    'spear-upgrade-style',
+    'spear-like-style',
+    'spear-like-order-style',
+  ])
+    document.getElementById(id)?.remove();
   // Remove upgrade button
   if (window.mainConfig.get('options.removeUpgradeButton')) {
     const itemsSelector = 'ytmusic-guide-section-renderer #items';
@@ -417,6 +429,7 @@ async function onApiLoaded() {
     }
 
     const styles = document.createElement('style');
+    styles.id = 'spear-upgrade-style';
     styles.textContent = `${itemsSelector} ${selector} { display: none; }`;
 
     document.head.appendChild(styles);
@@ -428,6 +441,7 @@ async function onApiLoaded() {
   );
   if (likeButtonsOptions) {
     const style = document.createElement('style');
+    style.id = 'spear-like-style';
     style.textContent = `
       ytmusic-player-bar[is-mweb-player-bar-modernization-enabled] .middle-controls-buttons.ytmusic-player-bar, #like-button-renderer {
         display: ${
@@ -446,6 +460,7 @@ async function onApiLoaded() {
   // Swap like button order
   if (window.mainConfig.get('options.swapLikeButtonsOrder')) {
     const style = document.createElement('style');
+    style.id = 'spear-like-order-style';
     style.textContent = `
       #like-button-renderer {
         display: inline-flex;
@@ -455,6 +470,7 @@ async function onApiLoaded() {
     document.head.appendChild(style);
   }
 }
+window.ipcRenderer.on('classic:appearance', applyAppearanceOptions);
 
 const definePearTransElements = () => {
   customElements.define(

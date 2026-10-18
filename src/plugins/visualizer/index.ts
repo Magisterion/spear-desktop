@@ -79,7 +79,7 @@ export default createPlugin({
   restartNeeded: false,
   config: {
     enabled: true,
-    type: 'butterchurn',
+    type: 'spectrum',
     // Config per visualizer
     butterchurn: {
       preset: 'martin [shadow harlequins shape code] - fata morgana',
@@ -203,6 +203,7 @@ export default createPlugin({
 
       // WebGL and 2D contexts cannot be switched on the same canvas.
       document.querySelector('#visualizer')?.remove();
+      document.querySelector('#spear-visualizer-tools')?.remove();
       let canvas = document.querySelector<HTMLCanvasElement>('#visualizer');
       if (!canvas) {
         canvas = document.createElement('canvas');
@@ -231,6 +232,14 @@ export default createPlugin({
           window.ipcRenderer.invoke('classic:visualizer-menu');
         };
         visualizerContainer?.prepend(canvas);
+        const equalizer = document.createElement('button');
+        equalizer.id = 'spear-visualizer-tools';
+        equalizer.textContent = 'EQ';
+        equalizer.title = 'Open equalizer settings';
+        equalizer.setAttribute('aria-label', 'Open equalizer settings');
+        equalizer.onclick = () =>
+          window.ipcRenderer.invoke('classic:navigate', 'equalizer');
+        visualizerContainer.append(equalizer);
       }
 
       const gainNode = this.props.audioContext.createGain();
@@ -291,6 +300,7 @@ export default createPlugin({
         );
       this.props.audioListener = null;
       document.querySelector('#visualizer')?.remove();
+      document.querySelector('#spear-visualizer-tools')?.remove();
     },
 
     onConfigChange(newConfig) {

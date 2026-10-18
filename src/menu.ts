@@ -200,6 +200,7 @@ export const mainMenuTemplate = async (
           })(),
         },
         {
+          id: 'classic-appearance',
           label: t('main.menu.options.submenu.visual-tweaks.label'),
           submenu: [
             {
@@ -423,11 +424,18 @@ export const mainMenuTemplate = async (
                 checked: config.get('options.startAtLogin'),
                 click(item) {
                   config.setMenuOption('options.startAtLogin', item.checked);
+                  app.setLoginItemSettings({
+                    openAtLogin: item.checked,
+                    path:
+                      process.env.PORTABLE_EXECUTABLE_FILE || process.execPath,
+                    args: ['--spear-autostart'],
+                  });
                 },
               },
             ]
           : []) satisfies Electron.MenuItemConstructorOptions[]),
         {
+          id: 'classic-tray',
           label: t('main.menu.options.submenu.tray.label'),
           submenu: [
             {

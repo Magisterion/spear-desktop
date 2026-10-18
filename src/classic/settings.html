@@ -91,6 +91,18 @@
         font-size: 13px;
         margin: 0;
       }
+      section {
+        min-width: 0;
+      }
+      .row select {
+        width: 220px;
+        max-width: 55%;
+        flex-shrink: 0;
+        text-overflow: ellipsis;
+      }
+      .row {
+        min-height: 32px;
+      }
       .row {
         display: flex;
         align-items: center;
@@ -165,7 +177,7 @@
     </main>
     <script>
       let data,
-        tab = 'General';
+        tab = decodeURIComponent(location.hash.slice(1)) || 'General';
       const categories = [
         'General',
         'Appearance',
@@ -175,7 +187,6 @@
         'Downloads',
         'Integrations',
         'Privacy & network',
-        'Connection',
         'About',
       ];
       const $ = (id) => document.getElementById(id);
@@ -218,6 +229,7 @@
         }
         if (c.children) {
           const d = el('details');
+          d.dataset.control = c.id;
           d.append(el('summary', c.label));
           const box = el('div');
           box.className = 'children';
@@ -245,6 +257,19 @@
         parent.append(row);
       }
       function draw() {
+        const section = document.querySelector('section');
+        const scroll = section.scrollTop;
+        const opened = new Set(
+          [...document.querySelectorAll('details[open]')].map(
+            (d) => d.dataset.control,
+          ),
+        );
+        const palette = data.skins.find((s) => s.id === data.skin);
+        if (palette) {
+          document.body.style.background = palette.surface;
+          document.querySelector('header').style.background =
+            `linear-gradient(${palette.top}, ${palette.bottom})`;
+        }
         const query = $('search').value.toLowerCase();
         $('notice').style.display = data.restart.length ? 'block' : 'none';
         $('nav').replaceChildren();
@@ -271,7 +296,8 @@
           });
           language.value = data.language;
           language.onchange = () => request('language', language.value);
-          const row = el('label', 'Language ');
+          const row = el('label', 'Language');
+          row.className = 'row';
           row.append(language);
           a.append(row);
           data.general
@@ -279,6 +305,22 @@
               (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
             )
             .forEach((c) => control(c, a));
+          for (const [key, text] of [
+            [
+              'minimizeOnAutoStart',
+              'Start minimized to tray when Windows starts',
+            ],
+            ['tray', 'Show tray icon'],
+          ]) {
+            const row = el('label', text);
+            row.className = 'row';
+            const box = el('input');
+            box.type = 'checkbox';
+            box.checked = data[key];
+            box.onchange = () => request(key, box.checked);
+            row.append(box);
+            a.append(row);
+          }
           const updatesRow = el('label', 'Check for updates at startup');
           updatesRow.className = 'row';
           const automatic = el('input');
@@ -297,12 +339,8 @@
           a.append(el('h2', 'Classic display'));
           const select = el('select');
           select.setAttribute('aria-label', 'Classic skin');
-          [
-            ['graphite', 'Graphite'],
-            ['green', 'Green phosphor'],
-            ['amber', 'Amber display'],
-          ].forEach(([id, label]) => {
-            const o = el('option', label);
+          data.skins.forEach(({ id, name }) => {
+            const o = el('option', name);
             o.value = id;
             select.append(o);
           });
@@ -312,12 +350,12 @@
             select,
             el(
               'p',
-              'Original color treatments inspired by classic desktop players. Custom CSS themes remain available in General.',
+              'Original color treatments inspired by classic desktop players. Custom CSS themes can be imported below.',
             ),
           );
           content.append(a);
         }
-        if (tab === 'Connection' && !query) {
+        if (tab === 'Privacy & network' && !query) {
           const a = el('article');
           a.append(el('h2', 'Proxy'));
           const label = el('label', 'Proxy server ');
@@ -338,6 +376,17 @@
           const save = el('button', 'Apply');
           save.onclick = () => request('proxy', input.value);
           a.append(save);
+          content.append(a);
+        }
+        if (tab === 'Appearance' || query) {
+          const a = el('article');
+          a.append(el('h2', 'Appearance options'));
+          data.appearance
+            .flatMap((c) => c.children || [c])
+            .filter(
+              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
+            )
+            .forEach((c) => control(c, a));
           content.append(a);
         }
         if (tab === 'About' && !query) {
@@ -391,6 +440,10 @@
             if (p.enabled) p.controls.forEach((c) => control(c, a));
             content.append(a);
           });
+        document.querySelectorAll('details').forEach((d) => {
+          d.open = opened.has(d.dataset.control);
+        });
+        section.scrollTop = scroll;
         if (!content.childElementCount) {
           const empty = el('p', 'No matching settings.');
           empty.className = 'empty';

@@ -365,7 +365,14 @@ for ($i = 0; $i -lt 60; $i++) {
   } catch { Start-Sleep -Seconds 1 }
 }
 [IO.File]::WriteAllText($p.result, (@{success=$installed} | ConvertTo-Json))
-if (Test-Path -LiteralPath $p.target) { Start-Process -FilePath $p.target -WorkingDirectory (Split-Path -Parent $p.target) }
+try {
+  if (!(Test-Path -LiteralPath $p.target)) { throw 'The portable executable is missing.' }
+  Start-Process -FilePath $p.target -WorkingDirectory (Split-Path -Parent $p.target) -ErrorAction Stop
+} catch {
+  [IO.File]::WriteAllText($p.result, (@{success=$false} | ConvertTo-Json))
+  Add-Type -AssemblyName System.Windows.Forms
+  [System.Windows.Forms.MessageBox]::Show('Spear could not restart automatically. Start YouTube-Music-Spear.exe manually. Your data folder has been preserved.', 'YouTube Music Spear update') | Out-Null
+}
 `;
     const child = spawn(
       'powershell.exe',
@@ -377,7 +384,12 @@ if (Test-Path -LiteralPath $p.target) { Start-Process -FilePath $p.target -Worki
         '-EncodedCommand',
         Buffer.from(script, 'utf16le').toString('base64'),
       ],
-      { detached: true, stdio: 'ignore', windowsHide: true },
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+        cwd: path.dirname(executable),
+      },
     );
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve);

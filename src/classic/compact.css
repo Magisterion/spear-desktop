@@ -1,41 +1,75 @@
 @media (max-width: 900px) {
+  /* Keep a dedicated rail: newer YouTube layouts use #mini-guide rather
+     than ytmusic-mini-guide-renderer. Never let content run underneath it. */
   ytmusic-app {
-    --ytmusic-guide-width: 0px !important;
-    --ytmusic-mini-guide-width: 0px !important;
-  }
-  ytmusic-mini-guide-renderer {
-    display: none !important;
+    --ytmusic-mini-guide-width: 72px !important;
   }
   #layout > #content {
-    margin-left: 0 !important;
+    margin-left: 72px !important;
   }
   ytmusic-player-page {
-    padding: 0 16px !important;
+    padding: 0 16px 0 88px !important;
   }
-  ytmusic-player-page #main-panel {
+  ytmusic-player-page:has(#visualizer):not(
+      :has([player-ui-state='FULLSCREEN'])
+    ) {
+    --ytmusic-player-page-video-height: 180px;
+    --ytmusic-player-page-video-width: 100%;
+  }
+  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+    #main-panel {
     padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    height: 214px !important;
+    max-height: 214px !important;
+    flex: 0 0 214px !important;
   }
-  ytmusic-player-page:has(#visualizer) #player:not(:fullscreen) {
+  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+    #player,
+  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+    #player-container {
     height: 180px !important;
     min-height: 0 !important;
     max-height: 180px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    aspect-ratio: auto !important;
     width: 100% !important;
   }
-  ytmusic-player-page:has(#visualizer) #player-container {
-    height: 180px !important;
+  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+    #side-panel {
+    margin-top: 8px !important;
+    transform: none !important;
     min-height: 0 !important;
-  }
-  ytmusic-player-page:has(#visualizer) #side-panel {
-    margin-top: 12px !important;
+    flex: 1 1 auto !important;
   }
 }
 #ytmd-title-bar-main-panel {
-  background: linear-gradient(#30343c, #1b1e24) !important;
-  border-bottom: 1px solid #4a505a;
+  background: linear-gradient(
+    var(--classic-top),
+    var(--classic-bottom)
+  ) !important;
+  border-bottom: 1px solid var(--classic-accent);
 }
 ytmusic-player-bar {
-  background: linear-gradient(#292d34, #17191d) !important;
+  background: linear-gradient(
+    var(--classic-top),
+    var(--classic-surface)
+  ) !important;
 }
 yt-formatted-string.title {
   color: var(--classic-accent) !important;
+}
+#spear-visualizer-tools {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 3;
+  border: 1px solid var(--classic-accent, #a9bdd4);
+  border-radius: 4px;
+  padding: 5px 9px;
+  background: #17191de6;
+  color: #fff;
+  cursor: pointer;
 }

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { deepmerge } from 'deepmerge-ts';
 import { app, BrowserWindow, ipcMain, Menu, screen, shell } from 'electron';
 import { languageResources } from 'virtual:i18n';
@@ -9,6 +10,7 @@ import { restart } from '@/providers/app-controls';
 import { getSongControls } from '@/providers/song-controls';
 import { registerCallback, type SongInfo } from '@/providers/song-info';
 
+import { skins } from './skins';
 import compactCss from './compact.css?inline';
 import localPreload from './preload.cjs?asset';
 import settingsPage from './settings.html?asset';
@@ -54,9 +56,10 @@ function localWindow(width: number, height: number, frame = true) {
   return win;
 }
 
-export function openSettings(win: BrowserWindow) {
+export function openSettings(win: BrowserWindow, tab?: string) {
   player = win;
   if (settings && !settings.isDestroyed()) {
+    if (tab) void settings.loadFile(settingsPage, { hash: tab });
     settings.show();
     settings.focus();
     return;
@@ -66,7 +69,7 @@ export function openSettings(win: BrowserWindow) {
     settings = null;
   });
   settings.once('ready-to-show', () => settings?.show());
-  settings.loadFile(settingsPage);
+  settings.loadFile(settingsPage, { hash: tab });
 }
 
 export function showTrayPopup(win: BrowserWindow) {
@@ -125,7 +128,9 @@ function controls(
     if (
       item.type === 'separator' ||
       item.visible === false ||
-      ['classic-proxy', 'classic-auto-updates'].includes(item.id ?? '')
+      ['classic-proxy', 'classic-auto-updates', 'classic-tray'].includes(
+        item.id ?? '',
+      )
     )
       return [];
     const id = `${prefix}:${index}`;
@@ -194,8 +199,18 @@ async function snapshot() {
     version: app.getVersion(),
     autoUpdates: config.get('options.autoUpdates'),
     proxy: config.get('options.proxy'),
+    minimizeOnAutoStart: config.get('options.minimizeOnAutoStart'),
+    tray: config.get('options.tray'),
+    appearance: controls(
+      options.filter((item) => item.id === 'classic-appearance'),
+      'appearance',
+    ),
     general: controls(
-      options.filter((item) => !item.label?.includes('(Language)')),
+      options.filter(
+        (item) =>
+          item.id !== 'classic-appearance' &&
+          !item.label?.includes('(Language)'),
+      ),
       'general',
     ),
     plugins: cards.sort((a, b) => a.name.localeCompare(b.name)),
@@ -205,6 +220,7 @@ async function snapshot() {
     })),
     language: config.get('options.language'),
     skin: config.get('options.classicSkin'),
+    skins: Object.entries(skins).map(([id, palette]) => ({ id, ...palette })),
     restart: [...pendingRestart],
   };
 }
@@ -229,11 +245,17 @@ export function setupClassic(win: BrowserWindow) {
       return;
     if (cssKey) await win.webContents.removeInsertedCSS(cssKey).catch(() => {});
     const skin = config.get('options.classicSkin');
-    const accent =
-      skin === 'amber' ? '#ffbb54' : skin === 'green' ? '#8fe388' : '#a9bdd4';
+    const palette = skins[skin] ?? skins.graphite;
+    const { accent, top, bottom, surface } = palette;
+    const custom = await Promise.all(
+      (config.get('options.themes') ?? []).map((file) =>
+        readFile(file, 'utf8').catch(() => ''),
+      ),
+    );
     cssKey = await win.webContents.insertCSS(
       compactCss +
-        `:root { --classic-accent: ${accent}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }`,
+        `:root { --classic-accent: ${accent}; --classic-top: ${top}; --classic-bottom: ${bottom}; --classic-surface: ${surface}; } ytmusic-player-bar { border-top: 1px solid ${accent} !important; }` +
+        custom.join('\n'),
     );
   };
   win.webContents.on('did-finish-load', () => {
@@ -250,8 +272,8 @@ export function setupClassic(win: BrowserWindow) {
       oscilloscope: 'Oscilloscope',
       spectrogram: 'Spectrum history',
     };
-    Menu.buildFromTemplate(
-      Object.entries(names).map(([type, label]) => ({
+    Menu.buildFromTemplate([
+      ...Object.entries(names).map(([type, label]) => ({
         label,
         type: 'radio' as const,
         checked:
@@ -259,7 +281,9 @@ export function setupClassic(win: BrowserWindow) {
           type,
         click: () => config.setPartial('plugins.visualizer', { type }),
       })),
-    ).popup({ window: win });
+      { type: 'separator' },
+      { label: 'Equalizer…', click: () => openSettings(win, 'Audio') },
+    ]).popup({ window: win });
   });
   ipcMain.handle('classic:navigate', (event, action: string) => {
     if (event.sender !== win.webContents) return;
@@ -269,6 +293,7 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
     if (action === 'settings') openSettings(win);
+    if (action === 'equalizer') openSettings(win, 'Audio');
     if (action === 'show') {
       win.show();
       win.focus();
@@ -314,6 +339,12 @@ export function setupClassic(win: BrowserWindow) {
         return shell.openExternal('https://github.com/pear-devs/pear-desktop');
       if (action === 'restart') return restart();
       if (action === 'update') return checkPortableUpdate(true);
+      if (action === 'minimizeOnAutoStart' && typeof value === 'boolean')
+        config.set('options.minimizeOnAutoStart', value);
+      if (action === 'tray' && typeof value === 'boolean') {
+        config.set('options.tray', value);
+        pendingRestart.add('Tray visibility');
+      }
       if (action === 'autoUpdates' && typeof value === 'boolean')
         config.set('options.autoUpdates', value);
       if (
@@ -337,10 +368,7 @@ export function setupClassic(win: BrowserWindow) {
         win.webContents.send('classic:language', value);
         await refreshMenu(win);
       }
-      if (
-        action === 'skin' &&
-        ['graphite', 'green', 'amber'].includes(String(value))
-      ) {
+      if (action === 'skin' && Object.hasOwn(skins, String(value))) {
         config.set('options.classicSkin', value);
         await applyStyle();
       }
@@ -367,6 +395,13 @@ export function setupClassic(win: BrowserWindow) {
             pendingRestart.add(key);
         });
         win.setAlwaysOnTop(config.get('options.alwaysOnTop'));
+        if (value.startsWith('appearance:')) {
+          await applyStyle();
+          win.webContents.send('classic:appearance');
+          win.setTitle(
+            config.get('options.customWindowTitle') || 'YouTube Music Spear',
+          );
+        }
       }
       return snapshot();
     },

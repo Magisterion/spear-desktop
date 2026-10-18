@@ -5,6 +5,14 @@ import os from 'node:os';
 import { test, expect, _electron as electron } from '@playwright/test';
 
 const root = path.resolve(import.meta.dirname, '..');
+async function localWindow(app, filename) {
+  await expect
+    .poll(() => app.windows().some((w) => w.url().includes(filename)), {
+      timeout: 20000,
+    })
+    .toBe(true);
+  return app.windows().find((w) => w.url().includes(filename));
+}
 test('Spear preferences use local IPC and portable data', async () => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'spear-smoke-'));
   const app = await electron.launch({
@@ -50,17 +58,18 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect
       .poll(
         () =>
-          app.evaluate(({ BrowserWindow }) =>
-            BrowserWindow.getAllWindows()[0].isVisible(),
-          ),
+          app
+            .evaluate(({ BrowserWindow }) =>
+              BrowserWindow.getAllWindows()[0]?.isVisible(),
+            )
+            .catch(() => false),
         { timeout: 20000 },
       )
       .toBe(true);
-    const opened = app.waitForEvent('window');
     await app.evaluate(({ Menu }) =>
       Menu.getApplicationMenu().items[0].submenu.items[0].click(),
     );
-    const settings = await opened;
+    const settings = await localWindow(app, 'settings');
     await settings.waitForLoadState('domcontentloaded');
     settings.on('pageerror', (error) =>
       console.error('Preferences:', error.message),
@@ -82,7 +91,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       settings.getByLabel('Starting page', { exact: true }),
     ).toHaveJSProperty('tagName', 'SELECT');
     await settings
-      .getByRole('button', { name: 'Connection', exact: true })
+      .getByRole('button', { name: 'Privacy & network', exact: true })
       .click();
     await expect(
       settings.getByLabel('Proxy server', { exact: true }),
@@ -103,6 +112,16 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(
       settings.getByLabel('Classic skin', { exact: true }),
     ).toHaveValue('amber');
+    await settings.getByRole('searchbox').fill('Visualizer');
+    const visualizerType = settings.locator('select').last();
+    await expect(visualizerType.locator('option:checked')).toHaveText(
+      'spectrum',
+    );
+    await visualizerType.selectOption({ label: 'oscilloscope' });
+    await expect(visualizerType.locator('option:checked')).toHaveText(
+      'oscilloscope',
+    );
+    await expect(settings.locator('#notice')).not.toBeVisible();
     await settings.getByRole('searchbox').fill('Keep listening');
     await expect(
       settings.getByRole('heading', { name: 'Keep listening', exact: true }),
@@ -192,49 +211,55 @@ test('Spear preferences use local IPC and portable data', async () => {
   }
 });
 
-// Reuse a completed first-run profile to verify subsequent launches stay in the tray.
-test('Returning users start in the tray', async () => {
-  const temporary = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'spear-returning-'),
-  );
-  await fs.mkdir(path.join(temporary, 'data'));
-  await fs.writeFile(
-    path.join(temporary, 'data', 'config.json'),
-    JSON.stringify({
-      options: { firstRunComplete: true, appVisible: false, tray: true },
-    }),
-  );
-  const app = await electron.launch({
-    cwd: root,
-    args: [root, '--no-sandbox', '--disable-gpu'],
-    env: {
-      ...process.env,
-      NODE_ENV: 'production',
-      PORTABLE_EXECUTABLE_DIR: temporary,
-    },
+// A manual launch always opens the player; only autostart may hide it.
+for (const automatic of [false, true])
+  test(`Returning user launch: automatic=${automatic}`, async () => {
+    const temporary = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'spear-returning-'),
+    );
+    await fs.mkdir(path.join(temporary, 'data'));
+    await fs.writeFile(
+      path.join(temporary, 'data', 'config.json'),
+      JSON.stringify({
+        options: { firstRunComplete: true, appVisible: false, tray: true },
+      }),
+    );
+    const app = await electron.launch({
+      cwd: root,
+      args: [
+        root,
+        '--no-sandbox',
+        '--disable-gpu',
+        ...(automatic ? ['--spear-autostart'] : []),
+      ],
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORTABLE_EXECUTABLE_DIR: temporary,
+      },
+    });
+    try {
+      await expect
+        .poll(
+          () =>
+            app
+              .evaluate(
+                ({ Menu }) =>
+                  Menu.getApplicationMenu()?.items[0]?.label === 'Settings',
+              )
+              .catch(() => false),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+      expect(
+        await app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0].isVisible(),
+        ),
+      ).toBe(!automatic);
+    } finally {
+      await app.close();
+    }
   });
-  try {
-    await expect
-      .poll(
-        () =>
-          app
-            .evaluate(
-              ({ Menu }) =>
-                Menu.getApplicationMenu()?.items[0]?.label === 'Settings',
-            )
-            .catch(() => false),
-        { timeout: 30000 },
-      )
-      .toBe(true);
-    expect(
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].isVisible(),
-      ),
-    ).toBe(false);
-  } finally {
-    await app.close();
-  }
-});
 
 test('Portable update shows progress, cancels and verifies before offering restart', async () => {
   const temporary = await fs.mkdtemp(
@@ -320,16 +345,14 @@ test('Portable update shows progress, cancels and verifies before offering resta
       },
       createHash('sha256').update(Buffer.alloc(65536, 42)).digest('hex'),
     );
-    const settingsOpened = app.waitForEvent('window');
     await app.evaluate(({ Menu }) =>
       Menu.getApplicationMenu().items[0].submenu.items[0].click(),
     );
-    const settings = await settingsOpened;
-    const updateOpened = app.waitForEvent('window');
+    const settings = await localWindow(app, 'settings');
     await settings
       .getByRole('button', { name: 'Check for updates', exact: true })
       .click();
-    const update = await updateOpened;
+    const update = await localWindow(app, 'updater');
     await expect(update.getByRole('heading')).toHaveText(
       'An update is available',
     );

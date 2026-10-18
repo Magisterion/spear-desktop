@@ -41,7 +41,7 @@ import {
 import { refreshMenu, setApplicationMenu } from '@/menu';
 import musicPlayerCss from '@/music-player.css?inline';
 import { defaultAuthProxyConfig } from '@/plugins/auth-proxy-adapter/config';
-import { fileExists, injectCSS, injectCSSAsFile } from '@/plugins/utils/main';
+import { injectCSS } from '@/plugins/utils/main';
 import { restart, setupAppControls } from '@/providers/app-controls';
 import {
   APP_PROTOCOL,
@@ -215,7 +215,10 @@ const initHook = async (win: BrowserWindow) => {
       const isEqual = deepEqual(oldPluginConfigList[id], newPluginConfig);
 
       if (!isEqual) {
-        const oldConfig = oldPluginConfigList[id] as PluginConfig;
+        const oldConfig = deepmerge(
+          allPluginStubs[id]?.config ?? { enabled: false },
+          oldPluginConfigList[id] ?? {},
+        ) as PluginConfig;
         const config = deepmerge(
           allPluginStubs[id].config ?? { enabled: false },
           newPluginConfig ?? {},
@@ -258,25 +261,6 @@ const initHook = async (win: BrowserWindow) => {
 
 function initTheme(win: BrowserWindow) {
   injectCSS(win.webContents, musicPlayerCss);
-  // Load user CSS
-  const themes: string[] = config.get('options.themes');
-  if (Array.isArray(themes)) {
-    for (const cssFile of themes) {
-      fileExists(
-        cssFile,
-        () => {
-          injectCSSAsFile(win.webContents, cssFile);
-        },
-        () => {
-          console.warn(
-            LoggerPrefix,
-            t('main.console.theme.css-file-not-found', { cssFile }),
-          );
-        },
-      );
-    }
-  }
-
   win.webContents.once('did-finish-load', () => {
     if (is.dev()) {
       console.debug(LoggerPrefix, t('main.console.did-finish-load.dev-tools'));
@@ -294,7 +278,7 @@ async function createMainWindow() {
   const defaultTitleBarOverlayOptions: Electron.TitleBarOverlay = {
     color: '#00000000',
     symbolColor: '#ffffff',
-    height: 32,
+    height: 40,
   };
 
   const decorations: Partial<BrowserWindowConstructorOptions> = {
@@ -472,7 +456,8 @@ async function createMainWindow() {
   win.once('ready-to-show', () => {
     if (
       !config.get('options.firstRunComplete') ||
-      config.get('options.appVisible') ||
+      !process.argv.includes('--spear-autostart') ||
+      !config.get('options.minimizeOnAutoStart') ||
       !config.get('options.tray')
     ) {
       win.show();
@@ -600,14 +585,13 @@ app.once('browser-window-created', (_event, win) => {
     event.preventDefault();
   });
 
-  const customWindowTitle = config.get('options.customWindowTitle');
-
-  if (customWindowTitle) {
-    win.on('page-title-updated', (event) => {
+  win.on('page-title-updated', (event) => {
+    const title = config.get('options.customWindowTitle');
+    if (title) {
       event.preventDefault();
-      win.setTitle(customWindowTitle);
-    });
-  }
+      win.setTitle(title);
+    }
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -799,6 +783,8 @@ app.whenReady().then(async () => {
   // Autostart at login
   app.setLoginItemSettings({
     openAtLogin: config.get('options.startAtLogin'),
+    path: process.env.PORTABLE_EXECUTABLE_FILE || process.execPath,
+    args: ['--spear-autostart'],
   });
 
   if (!is.dev() && config.get('options.autoUpdates')) {
