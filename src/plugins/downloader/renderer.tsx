@@ -60,6 +60,8 @@ export const onRendererLoad = ({
     }
 
     if (videoUrl) {
+      if (videoUrl.startsWith('/'))
+        videoUrl = new URL(videoUrl, defaultConfig.url).href;
       if (videoUrl.startsWith('watch?')) {
         videoUrl = defaultConfig.url + '/' + videoUrl;
       }
@@ -70,14 +72,20 @@ export const onRendererLoad = ({
       }
 
       if (videoUrl.includes('?playlist=')) {
-        ipc.invoke('download-playlist-request', videoUrl);
+        void ipc
+          .invoke('download-playlist-request', videoUrl)
+          .catch(() =>
+            setDownloadButtonText('Download failed. Click to retry.'),
+          );
         return;
       }
     } else {
       videoUrl = getSongInfo().url || window.location.href;
     }
 
-    ipc.invoke('download-song', videoUrl);
+    void ipc
+      .invoke('download-song', videoUrl)
+      .catch(() => setDownloadButtonText('Download failed. Click to retry.'));
   };
 
   ipc.on('downloader-feedback', (feedback: string) => {

@@ -1,6 +1,8 @@
 import { t } from '@/i18n';
 import { createPlugin } from '@/utils';
 
+import { ClassicVisualizer } from './visualizers/classic';
+
 import emptyStyle from './empty-player.css?inline';
 import {
   ButterchurnVisualizer as butterchurn,
@@ -16,7 +18,13 @@ type WaveColor = {
 
 export type VisualizerPluginConfig = {
   enabled: boolean;
-  type: 'butterchurn' | 'vudio' | 'wave';
+  type:
+    | 'butterchurn'
+    | 'vudio'
+    | 'wave'
+    | 'spectrum'
+    | 'oscilloscope'
+    | 'spectrogram';
   butterchurn: {
     preset: string;
     blendTimeInSeconds: number;
@@ -62,6 +70,7 @@ type RenderProps = {
   audioContext: AudioContext | null;
   audioSource: MediaElementAudioSourceNode | null;
   observer: ResizeObserver | null;
+  audioListener: ((e: DocumentEventMap['peard:audio-can-play']) => void) | null;
 };
 
 export default createPlugin({
@@ -69,7 +78,7 @@ export default createPlugin({
   description: () => t('plugins.visualizer.description'),
   restartNeeded: false,
   config: {
-    enabled: false,
+    enabled: true,
     type: 'butterchurn',
     // Config per visualizer
     butterchurn: {
@@ -136,7 +145,14 @@ export default createPlugin({
   stylesheets: [emptyStyle],
   menu: async ({ getConfig, setConfig }) => {
     const config = await getConfig();
-    const visualizerTypes = ['butterchurn', 'vudio', 'wave'] as const; // For bundling
+    const visualizerTypes = [
+      'butterchurn',
+      'vudio',
+      'wave',
+      'spectrum',
+      'oscilloscope',
+      'spectrogram',
+    ] as const; // For bundling
 
     return [
       {
@@ -159,6 +175,7 @@ export default createPlugin({
       audioContext: null,
       audioSource: null,
       observer: null,
+      audioListener: null,
     } as RenderProps,
 
     createVisualizer(
@@ -184,10 +201,35 @@ export default createPlugin({
         return;
       }
 
+      // WebGL and 2D contexts cannot be switched on the same canvas.
+      document.querySelector('#visualizer')?.remove();
       let canvas = document.querySelector<HTMLCanvasElement>('#visualizer');
       if (!canvas) {
         canvas = document.createElement('canvas');
         canvas.id = 'visualizer';
+        canvas.tabIndex = 0;
+        canvas.setAttribute('role', 'button');
+        canvas.setAttribute(
+          'aria-label',
+          'Open visualizer fullscreen. Right-click to change visualizer.',
+        );
+        canvas.title =
+          'Click for fullscreen · Right-click to change visualizer';
+        const fullscreen = () => {
+          if (document.fullscreenElement) void document.exitFullscreen();
+          else void canvas!.requestFullscreen().catch(() => {});
+        };
+        canvas.onclick = fullscreen;
+        canvas.onkeydown = (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fullscreen();
+          }
+        };
+        canvas.oncontextmenu = (e) => {
+          e.preventDefault();
+          window.ipcRenderer.invoke('classic:visualizer-menu');
+        };
         visualizerContainer?.prepend(canvas);
       }
 
@@ -203,19 +245,28 @@ export default createPlugin({
       } else if (config.type === 'butterchurn') {
         visualizerType = butterchurn;
       }
+      if (['spectrum', 'oscilloscope', 'spectrogram'].includes(config.type))
+        visualizerType = ClassicVisualizer;
       this.props.visualizerInstance = new visualizerType(
         this.props.audioContext,
         this.props.audioSource,
         canvas,
         gainNode,
-        video.captureStream(),
+        config.type === 'vudio' && typeof video.captureStream === 'function'
+          ? video.captureStream()
+          : new MediaStream(),
         config,
       );
 
       const resizeVisualizer = () => {
         if (canvas && visualizerContainer) {
           const { width, height } =
-            window.getComputedStyle(visualizerContainer);
+            document.fullscreenElement === canvas
+              ? {
+                  width: String(window.innerWidth),
+                  height: String(window.innerHeight),
+                }
+              : window.getComputedStyle(visualizerContainer);
           canvas.width = Math.ceil(parseFloat(width));
           canvas.height = Math.ceil(parseFloat(height));
         }
@@ -226,22 +277,44 @@ export default createPlugin({
       this.props.observer?.disconnect();
       this.props.observer = new ResizeObserver(resizeVisualizer);
       this.props.observer.observe(visualizerContainer);
+      this.props.observer.observe(canvas);
+    },
+
+    stop() {
+      this.props.visualizerInstance?.destroy();
+      this.props.visualizerInstance = null;
+      this.props.observer?.disconnect();
+      if (this.props.audioListener)
+        document.removeEventListener(
+          'peard:audio-can-play',
+          this.props.audioListener,
+        );
+      this.props.audioListener = null;
+      document.querySelector('#visualizer')?.remove();
     },
 
     onConfigChange(newConfig) {
       this.createVisualizer(newConfig);
     },
 
-    onPlayerApiReady(_, { getConfig }) {
+    async onPlayerApiReady(_, { getConfig }) {
+      if (this.props.audioListener)
+        document.removeEventListener(
+          'peard:audio-can-play',
+          this.props.audioListener,
+        );
+      this.props.audioListener = async (e) => {
+        this.props.audioContext = e.detail.audioContext;
+        this.props.audioSource = e.detail.audioSource;
+        this.createVisualizer(await getConfig());
+      };
       document.addEventListener(
         'peard:audio-can-play',
-        async (e) => {
-          this.props.audioContext = e.detail.audioContext;
-          this.props.audioSource = e.detail.audioSource;
-          this.createVisualizer(await getConfig());
-        },
+        this.props.audioListener,
         { passive: true },
       );
+      if (this.props.audioContext && this.props.audioSource)
+        this.createVisualizer(await getConfig());
     },
   },
 });

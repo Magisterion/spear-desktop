@@ -147,6 +147,32 @@ export const onMainLoad = async ({
   win = _win;
   config = await getConfig();
 
+  ipc.handle('download-song', (url: string) => downloadSong(url));
+  ipc.on('peard:video-src-changed', (data: GetPlayerResponse) => {
+    playingUrl =
+      data.microformat?.microformatDataRenderer?.urlCanonical ?? playingUrl;
+  });
+  ipc.handle('download-playlist-request', async (url: string) =>
+    downloadPlaylist(url),
+  );
+
+  downloadSongOnFinishSetup({ ipc, getConfig });
+};
+
+let initialization: Promise<void> | undefined;
+let sessionCookie: string | undefined;
+async function ensureDownloadClient() {
+  const cookie = await getCookieFromWindow(win);
+  if (!initialization || sessionCookie !== cookie) {
+    sessionCookie = cookie;
+    initialization = initializeDownloadClient().catch((error) => {
+      initialization = undefined;
+      throw error;
+    });
+  }
+  await initialization;
+}
+async function initializeDownloadClient() {
   yt = await Innertube.create({
     cache: new UniversalCache(false),
     cookie: await getCookieFromWindow(win),
@@ -212,17 +238,7 @@ export const onMainLoad = async ({
       cleanUp(globalThis);
     }
   }
-
-  ipc.handle('download-song', (url: string) => downloadSong(url));
-  ipc.on('peard:video-src-changed', (data: GetPlayerResponse) => {
-    playingUrl = data.microformat.microformatDataRenderer.urlCanonical;
-  });
-  ipc.handle('download-playlist-request', async (url: string) =>
-    downloadPlaylist(url),
-  );
-
-  downloadSongOnFinishSetup({ ipc, getConfig });
-};
+}
 
 export const onConfigChange = (newConfig: DownloaderPluginConfig) => {
   config = newConfig;
@@ -230,12 +246,13 @@ export const onConfigChange = (newConfig: DownloaderPluginConfig) => {
 
 export async function downloadSong(
   url: string,
-  playlistFolder?: string ,
-  trackId?: string ,
+  playlistFolder?: string,
+  trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
 ) {
   let resolvedName;
   try {
+    await ensureDownloadClient();
     await downloadSongUnsafe(
       false,
       url,
@@ -251,12 +268,13 @@ export async function downloadSong(
 
 export async function downloadSongFromId(
   id: string,
-  playlistFolder?: string ,
-  trackId?: string ,
+  playlistFolder?: string,
+  trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
 ) {
   let resolvedName;
   try {
+    await ensureDownloadClient();
     await downloadSongUnsafe(
       true,
       id,
@@ -329,8 +347,8 @@ async function downloadSongUnsafe(
   isId: boolean,
   idOrUrl: string,
   setName: (name: string) => void,
-  playlistFolder?: string ,
-  trackId?: string ,
+  playlistFolder?: string,
+  trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
 ) {
   const sendFeedback = (message: unknown, progress?: number) => {
@@ -408,7 +426,9 @@ async function downloadSongUnsafe(
   } else if (selectedPreset === 'Source') {
     presetSetting = DefaultPresetList['Source'];
   } else {
-    presetSetting = DefaultPresetList['mp3 (256kbps)'];
+    presetSetting =
+      DefaultPresetList[selectedPreset as keyof typeof DefaultPresetList] ??
+      DefaultPresetList['mp3 (256kbps)'];
   }
 
   const downloadOptions: Types.FormatOptions = {
@@ -454,7 +474,7 @@ async function downloadSongUnsafe(
   const iterableStream = Utils.streamToIterable(stream);
 
   if (!existsSync(dir)) {
-    mkdirSync(dir);
+    mkdirSync(dir, { recursive: true });
   }
 
   let fileBuffer = await iterableStreamToProcessedUint8Array(
@@ -556,7 +576,7 @@ async function iterableStreamToProcessedUint8Array(
           }),
           ratio,
         );
-        increasePlaylistProgress(0.15 + (ratio * 0.85));
+        increasePlaylistProgress(0.15 + ratio * 0.85);
       });
 
       const safeVideoNameWithExtension = `${safeVideoName}.${extension}`;
@@ -633,13 +653,20 @@ async function writeID3(
 
 export async function downloadPlaylist(givenUrl?: string | URL) {
   try {
+    await ensureDownloadClient();
+  } catch (error) {
+    sendError(error as Error);
+    return;
+  }
+  try {
     givenUrl = new URL(givenUrl ?? '');
   } catch {
     givenUrl = new URL(win.webContents.getURL());
   }
 
   const playlistId =
-    getPlaylistID(givenUrl) || getPlaylistID(new URL(playingUrl));
+    getPlaylistID(givenUrl) ||
+    getPlaylistID(URL.parse(playingUrl ?? '') ?? undefined);
 
   if (!playlistId) {
     sendError(
@@ -780,7 +807,7 @@ export async function downloadPlaylist(givenUrl?: string | URL) {
 
   const increaseProgress = (itemPercentage: number) => {
     const currentProgress = (counter - 1) / (items.length ?? 1);
-    const newProgress = currentProgress + (progressStep * itemPercentage);
+    const newProgress = currentProgress + progressStep * itemPercentage;
     win.setProgressBar(newProgress);
   };
 

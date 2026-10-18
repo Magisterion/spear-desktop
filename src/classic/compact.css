@@ -1,0 +1,41 @@
+@media (max-width: 900px) {
+  ytmusic-app {
+    --ytmusic-guide-width: 0px !important;
+    --ytmusic-mini-guide-width: 0px !important;
+  }
+  ytmusic-mini-guide-renderer {
+    display: none !important;
+  }
+  #layout > #content {
+    margin-left: 0 !important;
+  }
+  ytmusic-player-page {
+    padding: 0 16px !important;
+  }
+  ytmusic-player-page #main-panel {
+    padding: 0 !important;
+  }
+  ytmusic-player-page:has(#visualizer) #player:not(:fullscreen) {
+    height: 180px !important;
+    min-height: 0 !important;
+    max-height: 180px !important;
+    width: 100% !important;
+  }
+  ytmusic-player-page:has(#visualizer) #player-container {
+    height: 180px !important;
+    min-height: 0 !important;
+  }
+  ytmusic-player-page:has(#visualizer) #side-panel {
+    margin-top: 12px !important;
+  }
+}
+#ytmd-title-bar-main-panel {
+  background: linear-gradient(#30343c, #1b1e24) !important;
+  border-bottom: 1px solid #4a505a;
+}
+ytmusic-player-bar {
+  background: linear-gradient(#292d34, #17191d) !important;
+}
+yt-formatted-string.title {
+  color: var(--classic-accent) !important;
+}

@@ -28,6 +28,9 @@ import type { QueueElement } from '@/types/queue';
 import type { SearchBoxElement } from '@/types/search-box-element';
 
 setTheme('dark');
+window.ipcRenderer.on('classic:language', (_event, language: string) => {
+  void setLanguage(language);
+});
 
 let api: (Element & MusicPlayer) | null = null;
 let isPluginLoaded = false;

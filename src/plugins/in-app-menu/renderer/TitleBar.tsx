@@ -331,6 +331,37 @@ export const TitleBar = (props: TitleBarProps) => {
       data-ytmd-main-panel={true}
       id={'ytmd-title-bar-main-panel'}
     >
+      <div
+        style={{ display: 'flex', gap: '4px', '-webkit-app-region': 'no-drag' }}
+      >
+        {(
+          [
+            ['back', '←', 'Back'],
+            ['forward', '→', 'Forward'],
+            ['home', '⌂', 'Home'],
+            ['library', '♫', 'Library'],
+            ['settings', '⚙', 'Settings'],
+          ] as const
+        ).map(([action, icon, label]) => (
+          <button
+            title={label}
+            aria-label={label}
+            onClick={() =>
+              window.ipcRenderer.invoke('classic:navigate', action)
+            }
+            style={{
+              background: 'transparent',
+              color: 'inherit',
+              border: 'none',
+              cursor: 'pointer',
+              'font-size': '18px',
+              padding: '0 8px',
+            }}
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
       <IconButton
         onClick={() => setCollapsed(!collapsed())}
         style={{
@@ -384,7 +415,7 @@ export const TitleBar = (props: TitleBarProps) => {
 
           (element as HTMLElement).style.setProperty(
             'transition-delay',
-            `${(length * 0.025) - (index * 0.025)}s`,
+            `${length * 0.025 - index * 0.025}s`,
           );
         }}
       >

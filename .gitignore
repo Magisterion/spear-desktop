@@ -15,3 +15,14 @@ node_modules
 .vite-inspect
 
 .DS_Store
+
+# Portable user data and local credentials
+/data/
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/playwright-report/
+/test-results/

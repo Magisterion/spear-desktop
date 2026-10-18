@@ -23,7 +23,8 @@ import {
 import electronDebug from 'electron-debug';
 import is from 'electron-is';
 import unhandled from 'electron-unhandled';
-import electronUpdater from 'electron-updater';
+import { setupClassic, markRestartNeeded } from './classic/main';
+import { checkPortableUpdate } from './classic/updater';
 import { deepEqual } from 'fast-equals';
 import { parse } from 'node-html-parser';
 import { languageResources } from 'virtual:i18n';
@@ -62,7 +63,6 @@ unhandled({
 
 // Prevent window being garbage collected
 let mainWindow: Electron.BrowserWindow | null;
-electronUpdater.autoUpdater.autoDownload = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -131,12 +131,12 @@ if (is.linux()) {
 
   // Overrides WM_CLASS for X11 to correspond to icon filename
   app.setName(
-    'com.github.th-ch.\u0079\u006f\u0075\u0074\u0075\u0062\u0065\u002d\u006d\u0075\u0073\u0069\u0063',
+    'com.magisterion.spear',
   );
   // for wayland
   app.commandLine.appendSwitch(
     'class',
-    'com.github.th-ch.\u0079\u006f\u0075\u0074\u0075\u0062\u0065\u002d\u006d\u0075\u0073\u0069\u0063',
+    'com.magisterion.spear',
   );
 }
 
@@ -226,6 +226,13 @@ const initHook = async (win: BrowserWindow) => {
           newPluginConfig ?? {},
         ) as PluginConfig;
 
+        if (
+          config.enabled !== oldConfig?.enabled &&
+          allPluginStubs[id]?.restartNeeded
+        ) {
+          markRestartNeeded(id);
+          return;
+        }
         if (config.enabled !== oldConfig?.enabled) {
           if (config.enabled) {
             win.webContents.send('plugin:enable', id);
@@ -235,10 +242,6 @@ const initHook = async (win: BrowserWindow) => {
             win.webContents.send('plugin:unload', id);
             ipcMain.emit('plugin:unload', id);
             forceUnloadMainPlugin(id, win);
-          }
-
-          if (allPluginStubs[id]?.restartNeeded) {
-            showNeedToRestartDialog(id);
           }
         }
 
@@ -255,48 +258,6 @@ const initHook = async (win: BrowserWindow) => {
         win.webContents.send('config-changed', id, config);
       }
     });
-  });
-};
-
-const showNeedToRestartDialog = async (id: string) => {
-  const plugin = (await allPlugins())[id];
-
-  const dialogOptions: Electron.MessageBoxOptions = {
-    type: 'info',
-    buttons: [
-      t('main.dialog.need-to-restart.buttons.restart-now'),
-      t('main.dialog.need-to-restart.buttons.later'),
-    ],
-    title: t('main.dialog.need-to-restart.title'),
-    message: t('main.dialog.need-to-restart.message', {
-      pluginName: plugin?.name?.() ?? id,
-    }),
-    detail: t('main.dialog.need-to-restart.detail', {
-      pluginName: plugin?.name?.() ?? id,
-    }),
-    defaultId: 0,
-    cancelId: 1,
-  };
-
-  let dialogPromise: Promise<Electron.MessageBoxReturnValue>;
-  if (mainWindow) {
-    dialogPromise = dialog.showMessageBox(mainWindow, dialogOptions);
-  } else {
-    dialogPromise = dialog.showMessageBox(dialogOptions);
-  }
-
-  dialogPromise.then((dialogOutput) => {
-    switch (dialogOutput.response) {
-      case 0: {
-        restart();
-        break;
-      }
-
-      // Ignore
-      default: {
-        break;
-      }
-    }
   });
 };
 
@@ -387,7 +348,17 @@ async function createMainWindow() {
 
   await loadAllMainPlugins(win);
 
-  if (windowPosition) {
+  if (windowPosition.x === -1 && windowPosition.y === -1) {
+    const area = screen.getPrimaryDisplay().workArea;
+    const width = Math.min(windowSize.width, area.width);
+    const height = Math.min(windowSize.height, area.height - 24);
+    win.setBounds({
+      x: area.x + area.width - width - 12,
+      y: area.y + area.height - height - 12,
+      width,
+      height,
+    });
+  } else if (windowPosition) {
     const { x: windowX, y: windowY } = windowPosition;
     const winSize = win.getSize();
     const display = screen.getDisplayNearestPoint(windowPosition);
@@ -403,10 +374,10 @@ async function createMainWindow() {
     const scaledY = windowY;
 
     if (
-      scaledX + (scaledWidth / 2) < display.bounds.x - 8 || // Left
-      scaledX + (scaledWidth / 2) > display.bounds.x + display.bounds.width || // Right
+      scaledX + scaledWidth / 2 < display.bounds.x - 8 || // Left
+      scaledX + scaledWidth / 2 > display.bounds.x + display.bounds.width || // Right
       scaledY < display.bounds.y - 8 || // Top
-      scaledY + (scaledHeight / 2) > display.bounds.y + display.bounds.height // Bottom
+      scaledY + scaledHeight / 2 > display.bounds.y + display.bounds.height // Bottom
     ) {
       // Window is offscreen
       if (is.dev()) {
@@ -490,7 +461,7 @@ async function createMainWindow() {
   });
 
   win.once('ready-to-show', () => {
-    if (config.get('options.appVisible')) {
+    if (config.get('options.appVisible') || !config.get('options.tray')) {
       win.show();
     }
   });
@@ -674,13 +645,14 @@ app.whenReady().then(async () => {
   // Register appID on windows
   if (is.windows()) {
     const appID =
-      'com.github.th-ch.\u0079\u006f\u0075\u0074\u0075\u0062\u0065\u002d\u006d\u0075\u0073\u0069\u0063';
+      'com.magisterion.spear';
     app.setAppUserModelId(appID);
     const appLocation = process.execPath;
     const appData = app.getPath('appData');
     // Check shortcut validity if not in dev mode / running portable app
     if (
       !is.dev() &&
+      !process.env.PORTABLE_EXECUTABLE_DIR &&
       !appLocation.startsWith(path.join(appData, '..', 'Local', 'Temp'))
     ) {
       const shortcutPath = path.join(
@@ -769,6 +741,7 @@ app.whenReady().then(async () => {
   await setApplicationMenu(mainWindow);
   await refreshMenu(mainWindow);
   setUpTray(app, mainWindow);
+  setupClassic(mainWindow);
 
   setupProtocolHandler(mainWindow);
 
@@ -812,54 +785,7 @@ app.whenReady().then(async () => {
   });
 
   if (!is.dev() && config.get('options.autoUpdates')) {
-    const updateTimeout = setTimeout(() => {
-      electronUpdater.autoUpdater.checkForUpdatesAndNotify();
-      clearTimeout(updateTimeout);
-    }, 2000);
-    electronUpdater.autoUpdater.on('update-available', () => {
-      const downloadLink =
-        'https://github.com/pear-devs/pear-desktop/releases/latest';
-      const dialogOptions: Electron.MessageBoxOptions = {
-        type: 'info',
-        buttons: [
-          t('main.dialog.update-available.buttons.ok'),
-          t('main.dialog.update-available.buttons.download'),
-          t('main.dialog.update-available.buttons.disable'),
-        ],
-        title: t('main.dialog.update-available.title'),
-        message: t('main.dialog.update-available.message'),
-        detail: t('main.dialog.update-available.detail', { downloadLink }),
-        defaultId: 1,
-        cancelId: 0,
-      };
-
-      let dialogPromise: Promise<Electron.MessageBoxReturnValue>;
-      if (mainWindow) {
-        dialogPromise = dialog.showMessageBox(mainWindow, dialogOptions);
-      } else {
-        dialogPromise = dialog.showMessageBox(dialogOptions);
-      }
-
-      dialogPromise.then((dialogOutput) => {
-        switch (dialogOutput.response) {
-          // Download
-          case 1: {
-            shell.openExternal(downloadLink);
-            break;
-          }
-
-          // Disable updates
-          case 2: {
-            config.set('options.autoUpdates', false);
-            break;
-          }
-
-          case 0: {
-            break;
-          }
-        }
-      });
-    });
+    setTimeout(() => void checkPortableUpdate(false), 5000);
   }
 
   if (config.get('options.hideMenu') && !config.get('options.hideMenuWarned')) {

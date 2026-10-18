@@ -15,6 +15,7 @@ export interface DefaultConfig {
   'url': string;
   'options': {
     language?: string;
+    classicSkin: string;
     tray: boolean;
     appVisible: boolean;
     autoUpdates: boolean;
@@ -42,8 +43,8 @@ export interface DefaultConfig {
 
 export const defaultConfig: DefaultConfig = {
   'window-size': {
-    width: 1100,
-    height: 550,
+    width: 720,
+    height: 1100,
   },
   'window-maximized': false,
   'window-position': {
@@ -52,8 +53,10 @@ export const defaultConfig: DefaultConfig = {
   },
   'url': 'https://music.\u0079\u006f\u0075\u0074\u0075\u0062\u0065.com',
   'options': {
-    tray: false,
-    appVisible: true,
+    language: 'en',
+    classicSkin: 'graphite',
+    tray: true,
+    appVisible: false,
     autoUpdates: true,
     alwaysOnTop: false,
     hideMenu: false,

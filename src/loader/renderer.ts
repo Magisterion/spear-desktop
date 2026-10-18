@@ -98,6 +98,13 @@ export const forceLoadRendererPlugin = async (id: string) => {
         ...document.adoptedStyleSheets,
         ...styleSheetList,
       ];
+      unregisterStyleMap[id] = [
+        () => {
+          document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+            (sheet) => !styleSheetList.includes(sheet),
+          );
+        },
+      ];
     }
 
     console.log(

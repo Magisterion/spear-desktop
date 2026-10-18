@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';"
+    />
+    <title>Spear Preferences</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #17191d;
+        color: #e4e7ed;
+        font:
+          14px 'Segoe UI',
+          sans-serif;
+      }
+      header {
+        padding: 23px 28px;
+        border-bottom: 1px solid #343942;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 7px;
+      }
+      p {
+        color: #a9b1bf;
+        margin: 5px 0 16px;
+        line-height: 1.5;
+      }
+      input[type='search'] {
+        margin-top: 12px;
+        width: 100%;
+        background: #101216;
+        color: white;
+        border: 1px solid #484e59;
+        border-radius: 6px;
+        padding: 10px;
+      }
+      main {
+        display: flex;
+        height: calc(100vh - 150px);
+      }
+      nav {
+        width: 190px;
+        flex-shrink: 0;
+        padding: 15px;
+        border-right: 1px solid #343942;
+        overflow: auto;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+        background: #2b3039;
+        border: 1px solid #4b5360;
+        border-radius: 5px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      nav button {
+        display: block;
+        text-align: left;
+        width: 100%;
+        margin-bottom: 6px;
+        background: none;
+        border-color: transparent;
+      }
+      nav button[aria-current='true'] {
+        background: #323b48;
+        color: #cee2ff;
+        border-color: #596c85;
+      }
+      section {
+        padding: 24px;
+        overflow: auto;
+        flex: 1;
+      }
+      article {
+        background: #20232a;
+        border: 1px solid #383e49;
+        border-radius: 7px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0 0 9px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin: 10px 0;
+      }
+      input[type='checkbox'],
+      input[type='radio'] {
+        width: 18px;
+        height: 18px;
+        accent-color: #9ab9e6;
+      }
+      details {
+        border-top: 1px solid #343942;
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      summary {
+        cursor: pointer;
+        padding: 5px 0;
+        color: #c4d3e8;
+      }
+      .children {
+        padding: 4px 12px;
+      }
+      small {
+        color: #c4ae7c;
+      }
+      #notice {
+        padding: 9px;
+        background: #3e3422;
+        border-radius: 5px;
+        display: none;
+      }
+      #error {
+        color: #ffb4a6;
+        white-space: pre-wrap;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid #a9c8f1;
+        outline-offset: 2px;
+      }
+      .empty {
+        padding: 20px;
+        color: #a9b1bf;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Spear preferences</h1>
+      <div>Classic desktop controls. Your music, your layout.</div>
+      <input
+        id="search"
+        type="search"
+        placeholder="Search settings and plugins…"
+        aria-label="Search settings and plugins"
+      />
+    </header>
+    <main>
+      <nav id="nav" aria-label="Settings categories"></nav>
+      <section>
+        <div id="notice">
+          Changes are saved. Some require a restart.
+          <button id="restart">Restart now</button>
+        </div>
+        <p id="error" role="alert"></p>
+        <div id="content"></div>
+      </section>
+    </main>
+    <script>
+      let data,
+        tab = 'General';
+      const categories = [
+        'General',
+        'Appearance',
+        'Audio',
+        'Playback & tools',
+        'Lyrics',
+        'Downloads',
+        'Integrations',
+        'Privacy & network',
+      ];
+      const $ = (id) => document.getElementById(id);
+      const el = (tag, text) => {
+        const n = document.createElement(tag);
+        if (text) n.textContent = text;
+        return n;
+      };
+      async function request(action, value) {
+        try {
+          $('error').textContent = '';
+          const result = await window.classic.request(action, value);
+          if (result && result.plugins) {
+            data = result;
+            draw();
+          }
+          return result;
+        } catch (e) {
+          $('error').textContent = String(e);
+        }
+      }
+      function control(c, parent) {
+        if (c.children) {
+          const d = el('details');
+          d.append(el('summary', c.label));
+          const box = el('div');
+          box.className = 'children';
+          c.children.forEach((x) => control(x, box));
+          d.append(box);
+          parent.append(d);
+          return;
+        }
+        const row = el('label');
+        row.className = 'row';
+        row.append(el('span', c.label));
+        if (c.type === 'checkbox' || c.type === 'radio') {
+          const input = el('input');
+          input.type = c.type;
+          input.checked = !!c.checked;
+          input.disabled = !c.enabled;
+          input.onchange = () => request('control', c.id);
+          row.append(input);
+        } else {
+          const b = el('button', 'Open');
+          b.disabled = !c.enabled;
+          b.onclick = () => request('control', c.id);
+          row.append(b);
+        }
+        parent.append(row);
+      }
+      function draw() {
+        const query = $('search').value.toLowerCase();
+        $('notice').style.display = data.restart.length ? 'block' : 'none';
+        $('nav').replaceChildren();
+        categories.forEach((name) => {
+          const b = el('button', name);
+          b.setAttribute('aria-current', String(tab === name));
+          b.onclick = () => {
+            tab = name;
+            draw();
+          };
+          $('nav').append(b);
+        });
+        const content = $('content');
+        content.replaceChildren();
+        if (tab === 'General' || query) {
+          const a = el('article');
+          a.append(el('h2', 'Application'));
+          const language = el('select');
+          language.setAttribute('aria-label', 'Language');
+          data.languages.forEach((l) => {
+            const o = el('option', l.name);
+            o.value = l.id;
+            language.append(o);
+          });
+          language.value = data.language;
+          language.onchange = () => request('language', language.value);
+          const row = el('label', 'Language ');
+          row.append(language);
+          a.append(row);
+          data.general
+            .filter(
+              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
+            )
+            .forEach((c) => control(c, a));
+          const update = el('button', 'Check for updates');
+          update.onclick = () => request('update');
+          a.append(update);
+          content.append(a);
+        }
+        if (tab === 'Appearance' && !query) {
+          const a = el('article');
+          a.append(el('h2', 'Classic display'));
+          const select = el('select');
+          select.setAttribute('aria-label', 'Classic skin');
+          [
+            ['graphite', 'Graphite'],
+            ['green', 'Green phosphor'],
+            ['amber', 'Amber display'],
+          ].forEach(([id, label]) => {
+            const o = el('option', label);
+            o.value = id;
+            select.append(o);
+          });
+          select.value = data.skin;
+          select.onchange = () => request('skin', select.value);
+          a.append(
+            select,
+            el(
+              'p',
+              'Original color treatments inspired by classic desktop players. Custom CSS themes remain available in General.',
+            ),
+          );
+          content.append(a);
+        }
+        data.plugins
+          .filter(
+            (p) =>
+              (query || p.category === tab) &&
+              (!query ||
+                (p.name + ' ' + p.description).toLowerCase().includes(query)),
+          )
+          .forEach((p) => {
+            const a = el('article'),
+              row = el('label');
+            row.className = 'row';
+            row.append(el('h2', p.name));
+            const enabled = el('input');
+            enabled.type = 'checkbox';
+            enabled.checked = p.enabled;
+            enabled.setAttribute('aria-label', 'Enable ' + p.name);
+            enabled.onchange = () =>
+              request('plugin', { id: p.id, enabled: enabled.checked });
+            row.append(enabled);
+            a.append(row, el('p', p.description));
+            if (p.restart)
+              a.append(
+                el('small', 'Enabling or disabling requires a restart.'),
+              );
+            if (p.enabled) p.controls.forEach((c) => control(c, a));
+            content.append(a);
+          });
+        if (!content.childElementCount) {
+          const empty = el('p', 'No matching settings.');
+          empty.className = 'empty';
+          content.append(empty);
+        }
+      }
+      $('search').oninput = () => draw();
+      $('restart').onclick = () => request('restart');
+      request('snapshot');
+    </script>
+  </body>
+</html>

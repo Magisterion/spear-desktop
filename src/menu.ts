@@ -22,6 +22,7 @@ import { startingPages } from './providers/extracted-data';
 import promptOptions from './providers/prompt-options';
 
 import packageJson from '../package.json';
+import { openSettings } from './classic/main';
 
 export type MenuTemplate = Electron.MenuItemConstructorOptions[];
 
@@ -31,10 +32,10 @@ const inAppMenuActive = await config.plugins.isEnabled('in-app-menu');
 const pluginEnabledMenu = async (
   plugin: string,
   label = '',
-  description?: string ,
+  description?: string,
   isNew = false,
   hasSubmenu = false,
-  refreshMenu?: (() => void) ,
+  refreshMenu?: () => void,
 ): Promise<Electron.MenuItemConstructorOptions> => ({
   label: label || plugin,
   sublabel: isNew ? t('main.menu.plugins.new') : undefined,
@@ -498,17 +499,9 @@ export const mainMenuTemplate = async (
                   type: 'checkbox',
                   checked: (config.get('options.language') ?? 'en') === lang,
                   click() {
-                    config.setMenuOption('options.language', lang);
-                    refreshMenu(win);
-                    setLanguage(lang);
-                    dialog.showMessageBox(win, {
-                      title: t(
-                        'main.menu.options.submenu.language.dialog.title',
-                      ),
-                      message: t(
-                        'main.menu.options.submenu.language.dialog.message',
-                      ),
-                    });
+                    config.set('options.language', lang);
+                    void setLanguage(lang).then(() => refreshMenu(win));
+                    win.webContents.send('classic:language', lang);
                   },
                 }),
               )
@@ -696,7 +689,28 @@ export const mainMenuTemplate = async (
   ];
 };
 export const setApplicationMenu = async (win: Electron.BrowserWindow) => {
-  const menuTemplate: MenuTemplate = [...(await mainMenuTemplate(win))];
+  const menuTemplate: MenuTemplate = [
+    {
+      label: 'Settings',
+      submenu: [
+        {
+          label: 'Preferences…',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => openSettings(win),
+        },
+      ],
+    },
+    {
+      label: 'Player',
+      submenu: [
+        { role: 'reload' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { label: 'Exit', click: () => app.quit() },
+      ],
+    },
+    { label: 'About', submenu: [{ role: 'about' }] },
+  ];
   if (process.platform === 'darwin') {
     const { name } = app;
     menuTemplate.unshift({

@@ -12,6 +12,8 @@ import { restart } from './providers/app-controls';
 import { getSongControls } from './providers/song-controls';
 import { registerCallback, SongInfoEvent } from './providers/song-info';
 
+import { showTrayPopup } from './classic/main';
+
 import type { MenuTemplate } from './menu';
 
 // Prevent tray being garbage collected
@@ -128,7 +130,8 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
   ];
 
   const trayMenu = Menu.buildFromTemplate(template);
-  tray.setContextMenu(trayMenu);
+  if (is.windows()) tray.on('right-click', () => showTrayPopup(win));
+  else tray.setContextMenu(trayMenu);
 
   registerCallback((songInfo, event) => {
     if (event === SongInfoEvent.TimeChanged) return;

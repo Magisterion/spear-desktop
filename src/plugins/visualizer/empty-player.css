@@ -3,3 +3,19 @@
   z-index: 1;
   background-color: black;
 }
+
+#visualizer {
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+#visualizer:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+}
+#visualizer:focus-visible {
+  outline: 2px solid #99c8ff;
+}
