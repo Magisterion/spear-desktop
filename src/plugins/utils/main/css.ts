@@ -49,7 +49,10 @@ export const injectCSSAsFile = async (
 
 const setupCssInjection = (webContents: Electron.WebContents) => {
   webContents.on('did-finish-load', () => {
-    isLoaded = true;
+    isLoaded =
+      new URL(webContents.getURL() || 'about:blank').origin ===
+      'https://music.youtube.com';
+    if (!isLoaded) return;
 
     cssToInject.forEach(async (callback, css) => {
       const key = await webContents.insertCSS(css);

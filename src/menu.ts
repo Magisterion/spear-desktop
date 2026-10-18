@@ -160,6 +160,7 @@ export const mainMenuTemplate = async (
       label: t('main.menu.options.label'),
       submenu: [
         {
+          id: 'classic-auto-updates',
           label: t('main.menu.options.submenu.auto-update'),
           type: 'checkbox',
           checked: config.get('options.autoUpdates'),
@@ -464,7 +465,8 @@ export const mainMenuTemplate = async (
             },
             { type: 'separator' },
             {
-              label: 'Single click: play/pause; double click: show window (off swaps actions)',
+              label:
+                'Single click: play/pause; double click: show window (off swaps actions)',
               type: 'checkbox',
               checked: config.get('options.trayClickPlayPause'),
               click(item: MenuItem) {
@@ -511,6 +513,7 @@ export const mainMenuTemplate = async (
           label: t('main.menu.options.submenu.advanced-options.label'),
           submenu: [
             {
+              id: 'classic-proxy',
               label: t(
                 'main.menu.options.submenu.advanced-options.submenu.set-proxy.label',
               ),

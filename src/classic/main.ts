@@ -1,5 +1,5 @@
 import { deepmerge } from 'deepmerge-ts';
-import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen, shell } from 'electron';
 import { languageResources } from 'virtual:i18n';
 import { allPlugins } from 'virtual:plugins';
 
@@ -34,7 +34,7 @@ function localWindow(width: number, height: number, frame = true) {
     show: false,
     frame,
     backgroundColor: '#17191d',
-    title: 'Spear',
+    title: 'YouTube Music Spear',
     autoHideMenuBar: true,
     resizable: frame,
     alwaysOnTop: !frame,
@@ -120,7 +120,12 @@ function controls(
   prefix: string,
 ): Control[] {
   return items.flatMap((item, index) => {
-    if (item.type === 'separator' || item.visible === false) return [];
+    if (
+      item.type === 'separator' ||
+      item.visible === false ||
+      ['classic-proxy', 'classic-auto-updates'].includes(item.id ?? '')
+    )
+      return [];
     const id = `${prefix}:${index}`;
     if (item.click)
       actions.set(id, () =>
@@ -184,6 +189,9 @@ async function snapshot() {
   );
   const resources = await languageResources();
   return {
+    version: app.getVersion(),
+    autoUpdates: config.get('options.autoUpdates'),
+    proxy: config.get('options.proxy'),
     general: controls(
       options.filter((item) => !item.label?.includes('(Language)')),
       'general',
@@ -206,7 +214,12 @@ export function setupClassic(win: BrowserWindow) {
   });
   let cssKey: string | undefined;
   const applyStyle = async () => {
-    if (win.isDestroyed()) return;
+    if (
+      win.isDestroyed() ||
+      new URL(win.webContents.getURL() || 'about:blank').origin !==
+        'https://music.youtube.com'
+    )
+      return;
     if (cssKey) await win.webContents.removeInsertedCSS(cssKey).catch(() => {});
     const skin = config.get('options.classicSkin');
     const accent =
@@ -249,7 +262,10 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
     if (action === 'settings') openSettings(win);
-    if (action === 'show') { win.show(); win.focus(); }
+    if (action === 'show') {
+      win.show();
+      win.focus();
+    }
   });
   ipcMain.handle(
     'classic:local',
@@ -279,8 +295,27 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'quit') return app.quit();
       if (!fromSettings) throw new Error('Settings window required');
       if (action === 'snapshot') return snapshot();
+      if (action === 'project')
+        return shell.openExternal(
+          'https://github.com/Magisterion/spear-desktop',
+        );
+      if (action === 'upstream')
+        return shell.openExternal('https://github.com/pear-devs/pear-desktop');
       if (action === 'restart') return restart();
       if (action === 'update') return checkPortableUpdate(true);
+      if (action === 'autoUpdates' && typeof value === 'boolean')
+        config.set('options.autoUpdates', value);
+      if (
+        action === 'proxy' &&
+        typeof value === 'string' &&
+        value.length <= 2048
+      ) {
+        const proxy = value.trim();
+        if (proxy !== config.get('options.proxy')) {
+          config.set('options.proxy', proxy);
+          pendingRestart.add('Connection proxy');
+        }
+      }
       if (
         action === 'language' &&
         typeof value === 'string' &&

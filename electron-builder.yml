@@ -1,5 +1,5 @@
 appId: com.magisterion.spear
-productName: Spear
+productName: YouTube Music Spear
 files:
   - '!*'
   - dist

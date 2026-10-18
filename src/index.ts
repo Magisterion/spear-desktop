@@ -130,14 +130,9 @@ if (is.linux()) {
   }
 
   // Overrides WM_CLASS for X11 to correspond to icon filename
-  app.setName(
-    'com.magisterion.spear',
-  );
+  app.setName('com.magisterion.spear');
   // for wayland
-  app.commandLine.appendSwitch(
-    'class',
-    'com.magisterion.spear',
-  );
+  app.commandLine.appendSwitch('class', 'com.magisterion.spear');
 }
 
 if (disableHardwareAcceleration) {
@@ -460,16 +455,39 @@ async function createMainWindow() {
     showUnresponsiveDialog(win, details);
   });
 
+  win.webContents.on(
+    'did-start-navigation',
+    (_event, target, _inPlace, isMainFrame) => {
+      if (!isMainFrame) return;
+      const isPlayer = new URL(target).origin === 'https://music.youtube.com';
+      win.setBackgroundColor(isPlayer ? '#000000' : '#ffffff');
+      if (useInlineMenu && is.windows())
+        win.setTitleBarOverlay({
+          color: isPlayer ? '#00000000' : '#ffffff',
+          symbolColor: isPlayer ? '#ffffff' : '#222222',
+        });
+    },
+  );
+
   win.once('ready-to-show', () => {
-    if (config.get('options.appVisible') || !config.get('options.tray')) {
+    if (
+      !config.get('options.firstRunComplete') ||
+      config.get('options.appVisible') ||
+      !config.get('options.tray')
+    ) {
       win.show();
     }
+    config.set('options.firstRunComplete', true);
   });
 
   removeContentSecurityPolicy();
 
   win.webContents.on('dom-ready', () => {
-    if (useInlineMenu && is.windows()) {
+    if (
+      useInlineMenu &&
+      is.windows() &&
+      new URL(win.webContents.getURL()).origin === 'https://music.youtube.com'
+    ) {
       win.setTitleBarOverlay({
         ...defaultTitleBarOverlayOptions,
         height: Math.floor(
@@ -644,8 +662,7 @@ app.whenReady().then(async () => {
 
   // Register appID on windows
   if (is.windows()) {
-    const appID =
-      'com.magisterion.spear';
+    const appID = 'com.magisterion.spear';
     app.setAppUserModelId(appID);
     const appLocation = process.execPath;
     const appData = app.getPath('appData');

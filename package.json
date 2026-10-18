@@ -1,8 +1,8 @@
 {
   "name": "spear",
   "desktopName": "com.magisterion.spear",
-  "productName": "Spear",
-  "version": "3.12.1",
+  "productName": "YouTube Music Spear",
+  "version": "3.12.2",
   "description": "AI-assisted classic desktop adaptation of Pear for Windows x64",
   "main": "./dist/main/index.js",
   "type": "module",

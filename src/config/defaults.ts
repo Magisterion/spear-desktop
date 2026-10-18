@@ -18,6 +18,7 @@ export interface DefaultConfig {
     classicSkin: string;
     tray: boolean;
     appVisible: boolean;
+    firstRunComplete: boolean;
     autoUpdates: boolean;
     alwaysOnTop: boolean;
     hideMenu: boolean;
@@ -57,6 +58,7 @@ export const defaultConfig: DefaultConfig = {
     classicSkin: 'graphite',
     tray: true,
     appVisible: false,
+    firstRunComplete: false,
     autoUpdates: true,
     alwaysOnTop: false,
     hideMenu: false,

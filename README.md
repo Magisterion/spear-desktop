@@ -10,7 +10,7 @@ Download **YouTube-Music-Spear.exe** from this repository's [Releases](https://g
 
 Settings, sign-in session, cache and logs live in a **data** folder next to the executable. Keep that folder when upgrading or moving the app. It contains private account data: never commit, publish or share it. Releases are built from tracked source on a clean GitHub Actions runner, not from a developer's local profile.
 
-Spear starts in the notification area by default. Single-click the tray icon to play or pause; double-click to open the player. Preferences can swap these actions. An empty queue attempts to start liked songs; right-click for the current track, playback controls, settings and exit. Windows may initially put the icon in the notification area's overflow menu.
+The first launch opens the player for sign-in. Later launches start in the notification area by default. Single-click the tray icon to play or pause; double-click to open the player. Preferences can swap these actions. An empty queue attempts to start liked songs; right-click for the current track, playback controls, settings and exit. Windows may initially put the icon in the notification area's overflow menu.
 
 ## Classic desktop experience
 
