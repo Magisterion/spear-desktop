@@ -234,3 +234,148 @@ test('Returning users start in the tray', async () => {
     await app.close();
   }
 });
+
+test('Portable update shows progress, cancels and verifies before offering restart', async () => {
+  const temporary = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'spear-update-test-'),
+  );
+  const executable = path.join(temporary, 'YouTube-Music-Spear.exe');
+  await fs.writeFile(executable, 'unchanged test executable');
+  const app = await electron.launch({
+    cwd: root,
+    args: [root, '--no-sandbox', '--disable-gpu'],
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      PORTABLE_EXECUTABLE_DIR: temporary,
+      PORTABLE_EXECUTABLE_FILE: executable,
+    },
+  });
+  try {
+    await expect
+      .poll(
+        () =>
+          app
+            .evaluate(
+              ({ Menu }) =>
+                Menu.getApplicationMenu()?.items[0]?.label === 'Settings',
+            )
+            .catch(() => false),
+        { timeout: 30000 },
+      )
+      .toBe(true);
+    await app.evaluate(async ({ net }) => {
+      const { createHash } = await import('node:crypto');
+      const bytes = Buffer.alloc(65536, 42);
+      const hash = createHash('sha256').update(bytes).digest('hex');
+      const original = net.fetch.bind(net);
+      net.fetch = async (url, options) => {
+        const base =
+          'https://github.com/Magisterion/spear-desktop/releases/download/v9.9.9/';
+        if (String(url).endsWith('/releases/latest'))
+          return new Response(
+            JSON.stringify({
+              tag_name: 'v9.9.9',
+              draft: false,
+              prerelease: false,
+              assets: [
+                {
+                  name: 'YouTube-Music-Spear.exe',
+                  size: bytes.length,
+                  browser_download_url: base + 'YouTube-Music-Spear.exe',
+                },
+                {
+                  name: 'YouTube-Music-Spear.exe.sha256',
+                  size: 64,
+                  browser_download_url: base + 'YouTube-Music-Spear.exe.sha256',
+                },
+              ],
+            }),
+          );
+        if (String(url) === base + 'YouTube-Music-Spear.exe.sha256')
+          return new Response(hash);
+        if (String(url) === base + 'YouTube-Music-Spear.exe') {
+          let offset = 0;
+          return new Response(
+            new ReadableStream({
+              async pull(controller) {
+                await new Promise((resolve) => setTimeout(resolve, 150));
+                if (options?.signal?.aborted) {
+                  controller.error(new Error('Aborted'));
+                  return;
+                }
+                if (offset === bytes.length) {
+                  controller.close();
+                  return;
+                }
+                controller.enqueue(bytes.subarray(offset, offset + 4096));
+                offset += 4096;
+              },
+            }),
+          );
+        }
+        return original(url, options);
+      };
+    });
+    const settingsOpened = app.waitForEvent('window');
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu().items[0].submenu.items[0].click(),
+    );
+    const settings = await settingsOpened;
+    const updateOpened = app.waitForEvent('window');
+    await settings
+      .getByRole('button', { name: 'Check for updates', exact: true })
+      .click();
+    const update = await updateOpened;
+    await expect(update.getByRole('heading')).toHaveText(
+      'An update is available',
+    );
+    await update
+      .getByRole('button', { name: 'Download update', exact: true })
+      .click();
+    await expect(
+      update.getByRole('button', { name: 'Cancel', exact: true }),
+    ).toBeVisible();
+    await expect(update.locator('#stats')).toContainText('%');
+    // The separate preferences window remains usable during download.
+    await settings.getByRole('button', { name: 'About', exact: true }).click();
+    await expect(
+      settings.getByRole('heading', {
+        name: 'YouTube Music Spear',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await update.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(update.getByRole('heading')).toHaveText('Download cancelled');
+    expect(await fs.readFile(executable, 'utf8')).toBe(
+      'unchanged test executable',
+    );
+    await update
+      .getByRole('button', { name: 'Download update', exact: true })
+      .click();
+    await expect(
+      update.getByRole('button', { name: 'Restart and install', exact: true }),
+    ).toBeVisible({ timeout: 15000 });
+    expect(
+      (
+        await fs.stat(
+          path.join(
+            temporary,
+            'data',
+            'updates',
+            'YouTube-Music-Spear.exe.new',
+          ),
+        )
+      ).size,
+    ).toBe(65536);
+    expect(await fs.readFile(executable, 'utf8')).toBe(
+      'unchanged test executable',
+    );
+    await update.screenshot({
+      path: path.join(root, 'test-results', 'spear-update.png'),
+    });
+    // Do not execute the fake update. Installation requires an explicit user action.
+  } finally {
+    await app.close();
+  }
+});
