@@ -412,6 +412,7 @@ async function installUpdate() {
     ).toString('base64');
     // Only base64 JSON is interpolated; paths never become PowerShell source.
     const script = `$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json
 try {
 if ((Get-FileHash -LiteralPath $p.source -Algorithm SHA256).Hash.ToLower() -ne $p.hash) { throw 'Downloaded file verification failed.' }

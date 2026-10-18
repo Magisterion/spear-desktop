@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 1dfac0ff4628de49ef571467f4403667d624d3ae
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Exercise Night Run and the Windows portable update helper")
+          test "$(git rev-parse HEAD^)" = c9749146410e5cb56ea4c66ede9f81f266812ccf
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Keep portable helper output quiet and document Spear features")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
