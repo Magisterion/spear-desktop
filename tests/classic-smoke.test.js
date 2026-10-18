@@ -607,45 +607,44 @@ test('Spear preferences use local IPC and portable data', async () => {
     await game.evaluate(() => window.gameListeners['classic:game-close']());
     await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.close();
-    const consent = await app.firstWindow();
-    await consent.evaluate(() =>
+    const consent = player;
+    const nativePlayer = await app.browserWindow(player);
+    await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'game'),
     );
     await expect
-      .poll(() =>
-        app.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()[0].isFullScreen(),
-        ),
-      )
+      .poll(() => nativePlayer.evaluate((w) => w.isFullScreen()))
       .toBe(true);
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].close(),
-    );
+    await nativePlayer.evaluate((w) => w.close());
     await expect
       .poll(() =>
-        app.evaluate(({ BrowserWindow }) => {
-          const w = BrowserWindow.getAllWindows()[0];
-          return w.isVisible() && !w.isFullScreen();
-        }),
+        nativePlayer.evaluate((w) => w.isVisible() && !w.isFullScreen()),
       )
       .toBe(true);
-    await consent.evaluate(() =>
+    await expect(player.locator('#spear-pulsefield')).toHaveCount(0);
+    await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'game'),
     );
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({
-        type: 'keyDown',
-        keyCode: 'Escape',
-      }),
+    await nativePlayer.evaluate((w) =>
+      w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }),
+    );
+    await expect
+      .poll(() => nativePlayer.evaluate((w) => !w.isFullScreen()))
+      .toBe(true);
+    await expect(player.locator('#spear-pulsefield')).toHaveCount(0);
+    await player.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'game'),
+    );
+    await nativePlayer.evaluate((w) => w.hide());
+    await player.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'show'),
     );
     await expect
       .poll(() =>
-        app.evaluate(
-          ({ BrowserWindow }) =>
-            !BrowserWindow.getAllWindows()[0].isFullScreen(),
-        ),
+        nativePlayer.evaluate((w) => w.isVisible() && !w.isFullScreen()),
       )
       .toBe(true);
+    await expect(player.locator('#spear-pulsefield')).toHaveCount(0);
     await consent.route('https://consent.youtube.com/**', (route) =>
       route.fulfill({
         contentType: 'text/html',
