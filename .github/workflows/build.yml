@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 4f6d55b71ab9a6279361f6107658de766dda33fb
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Publish verified portable builds when history normalization is skipped")
+          test "$(git rev-parse HEAD^)" = fd843009b5199ae6e901db0b12d3b8709ab31969
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Preserve downloaded artifacts during release checkout")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -86,11 +86,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/download-artifact@v4
         with:
           name: Spear-Windows-x64-portable
           path: release
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Publish portable release
         shell: pwsh
         env:
