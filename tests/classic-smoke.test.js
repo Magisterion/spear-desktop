@@ -1,4 +1,5 @@
-import ts from 'typescript';
+import { stripTypeScriptTypes } from 'node:module';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -293,15 +294,9 @@ test('Spear preferences use local IPC and portable data', async () => {
       };
     });
     await game.addScriptTag({
-      content: ts.transpileModule(
+      content: stripTypeScriptTypes(
         await fs.readFile(path.join(root, 'src/classic/night-run.ts'), 'utf8'),
-        {
-          compilerOptions: {
-            target: ts.ScriptTarget.ES2022,
-            module: ts.ModuleKind.None,
-          },
-        },
-      ).outputText,
+      ),
     });
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(
@@ -623,5 +618,81 @@ test('Portable update shows progress, cancels and verifies before offering resta
     // Do not execute the fake update. Installation requires an explicit user action.
   } finally {
     await app.close();
+  }
+});
+
+test('Windows portable helper verifies, replaces and relaunches without changing data permissions', async () => {
+  test.skip(process.platform !== 'win32', 'Windows portable updater');
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'spear-helper-'));
+  const target = path.join(temporary, 'portable.cmd');
+  const source = target + '.new';
+  const marker = path.join(temporary, 'restarted.txt');
+  const ready = path.join(temporary, 'ready.txt');
+  const result = path.join(temporary, 'result.json');
+  const bytes = Buffer.from(
+    '@echo off\r\necho restarted>"%~dp0restarted.txt"\r\n',
+  );
+  await fs.writeFile(target, '@echo off\r\n');
+  await fs.writeFile(source, bytes);
+  // An isolated dummy process represents the running player. No real app is killed.
+  const waiting = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 1500)']);
+  const payload = Buffer.from(
+    JSON.stringify({
+      pid: waiting.pid,
+      source,
+      target,
+      ready,
+      result,
+      hash: createHash('sha256').update(bytes).digest('hex'),
+    }),
+  ).toString('base64');
+  const code = await fs.readFile(
+    path.join(root, 'src/classic/updater.ts'),
+    'utf8',
+  );
+  const script = code
+    .match(/const script = `([\s\S]*?)`;/)[1]
+    .replace('${payload}', payload);
+  let error = '';
+  const helper = spawn(
+    path.join(
+      process.env.SystemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    ),
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64'),
+    ],
+    { cwd: temporary, windowsHide: true },
+  );
+  helper.stderr.on('data', (chunk) => {
+    error += chunk;
+  });
+  try {
+    const exitCode = await new Promise((resolve, reject) => {
+      helper.once('exit', resolve);
+      helper.once('error', reject);
+    });
+    expect(error).toBe('');
+    expect(exitCode).toBe(0);
+    expect(await fs.readFile(ready, 'utf8')).toBe('ready');
+    expect(JSON.parse(await fs.readFile(result, 'utf8')).success).toBe(true);
+    expect(await fs.readFile(target)).toEqual(bytes);
+    await expect
+      .poll(() => fs.readFile(marker, 'utf8').catch(() => ''), {
+        timeout: 10000,
+      })
+      .toContain('restarted');
+    // The update directory remains writable after the helper has exited.
+    await fs.writeFile(path.join(temporary, 'data-check'), 'writable');
+    await fs.rm(path.join(temporary, 'data-check'));
+  } finally {
+    helper.kill();
+    waiting.kill();
   }
 });
