@@ -93,6 +93,13 @@ function openGame() {
     if (event.pointerType !== 'touch')
       void canvas.requestPointerLock()?.catch(() => {});
   };
+  let hadPointerLock = false;
+  const pointerLockChanged = () => {
+    const locked = root.pointerLockElement === canvas;
+    if (hadPointerLock && !locked && document.hasFocus()) closeGame?.();
+    hadPointerLock = locked;
+  };
+  document.addEventListener('pointerlockchange', pointerLockChanged);
   document.addEventListener('keydown', keydown, true);
   document.addEventListener('keyup', keyup, true);
   window.addEventListener('blur', blur);
@@ -101,6 +108,7 @@ function openGame() {
   closeGame = () => {
     cancelAnimationFrame(raf);
     resize.disconnect();
+    document.removeEventListener('pointerlockchange', pointerLockChanged);
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('keyup', keyup, true);
     window.removeEventListener('blur', blur);

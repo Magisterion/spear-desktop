@@ -198,6 +198,7 @@
   width: 100% !important;
   min-height: 0 !important;
   aspect-ratio: auto !important;
+  max-width: none !important;
 }
 .spear-show-media
   ytmusic-player-page

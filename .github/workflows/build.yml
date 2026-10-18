@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 6667b4c51aaf234c6f4e6bf1f48ac9bd478ac4a0
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Verify game lifecycle against the actual player window")
+          test "$(git rev-parse HEAD^)" = 55ff1b8745ab2417b8eab86dfdbb30e6e4f8d71d
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Handle fullscreen transitions and pointer unlock when leaving the game")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

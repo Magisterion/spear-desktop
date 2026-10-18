@@ -27,6 +27,8 @@ let song: Partial<SongInfo> = {};
 let artwork = '';
 let audioLevel = 0;
 let gamePreviousFullscreen: boolean | null = null;
+let gameEnteringFullscreen = false;
+let gamePendingRestore: boolean | null = null;
 let audioLevelAt = 0;
 let artworkImage: SongInfo['image'];
 let player: BrowserWindow;
@@ -39,6 +41,7 @@ export function closeClassicGame(win: BrowserWindow, restore = true) {
   if (gamePreviousFullscreen === null) return false;
   const fullscreen = gamePreviousFullscreen;
   gamePreviousFullscreen = null;
+  if (gameEnteringFullscreen) gamePendingRestore = fullscreen;
   win.webContents.send('classic:game-close');
   win.setFullScreen(fullscreen);
   if (restore) {
@@ -389,21 +392,34 @@ export function setupClassic(win: BrowserWindow) {
   win.webContents.on('before-input-event', (event, input) => {
     if (
       input.type === 'keyDown' &&
-      input.key === 'Escape' &&
+      (input.key === 'Escape' ||
+        input.key === 'Esc' ||
+        input.code === 'Escape') &&
       gamePreviousFullscreen !== null
     ) {
       event.preventDefault();
       closeClassicGame(win);
     }
   });
+  win.on('enter-full-screen', () => {
+    gameEnteringFullscreen = false;
+    if (gamePendingRestore !== null) {
+      const restore = gamePendingRestore;
+      gamePendingRestore = null;
+      win.setFullScreen(restore);
+    }
+  });
   win.on('hide', () => closeClassicGame(win, false));
   win.on('minimize', () => closeClassicGame(win, false));
   const openEntertainment = (action: string) => {
+    settings?.hide();
     win.show();
     win.focus();
     popup?.hide();
     if (action === 'game') {
       gamePreviousFullscreen ??= win.isFullScreen();
+      gamePendingRestore = null;
+      gameEnteringFullscreen = !win.isFullScreen();
       win.setFullScreen(true);
       win.webContents.send('classic:game');
     } else {

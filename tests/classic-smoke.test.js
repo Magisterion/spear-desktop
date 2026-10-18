@@ -625,9 +625,18 @@ test('Spear preferences use local IPC and portable data', async () => {
     await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'game'),
     );
-    await nativePlayer.evaluate((w) =>
-      w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }),
-    );
+    await expect(player.locator('#spear-pulsefield')).toHaveCount(1);
+    await expect
+      .poll(() => nativePlayer.evaluate((w) => w.isFullScreen()))
+      .toBe(true);
+    await nativePlayer.evaluate((w) => w.focus());
+    await expect
+      .poll(() => nativePlayer.evaluate((w) => w.isFocused()))
+      .toBe(true);
+    await nativePlayer.evaluate((w) => {
+      w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    });
     await expect
       .poll(() => nativePlayer.evaluate((w) => !w.isFullScreen()))
       .toBe(true);
