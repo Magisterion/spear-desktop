@@ -1,4 +1,5 @@
 import './classic/night-run';
+import { initializeAudio } from './classic/audio';
 import i18next from 'i18next';
 import { setTheme } from 'mdui/functions/setTheme.js';
 import 'mdui/mdui.css';
@@ -353,7 +354,7 @@ async function onApiLoaded() {
   const video = document.querySelector('video')!;
   const audioContext = new AudioContext();
   const audioSource = audioContext.createMediaElementSource(video);
-  audioSource.connect(audioContext.destination);
+  const audioOutput = initializeAudio(audioContext, audioSource, video);
 
   for (const [id, plugin] of Object.entries(getAllLoadedRendererPlugins())) {
     if (typeof plugin.renderer !== 'function') {
@@ -377,6 +378,7 @@ async function onApiLoaded() {
         detail: {
           audioContext,
           audioSource,
+          audioOutput,
         },
       }),
     );
@@ -389,9 +391,10 @@ async function onApiLoaded() {
     });
   };
 
-  if (video.readyState === 4 /* HAVE_ENOUGH_DATA (loaded) */) {
-    audioCanPlayEventDispatcher();
-  }
+  audioCanPlayEventDispatcher();
+  video.addEventListener('playing', audioCanPlayEventDispatcher, {
+    passive: true,
+  });
 
   video.addEventListener('loadstart', loadstartListener, { passive: true });
 

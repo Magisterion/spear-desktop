@@ -1,34 +1,62 @@
-#visualizer {
-  position: absolute;
-  z-index: 1;
-  background-color: black;
-}
-
-#visualizer {
-  cursor: pointer;
+#spear-visualizer-stage {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
   width: 100%;
-  height: 100%;
-  top: 0;
+  height: 220px;
+  flex: 0 0 220px;
+  min-width: 0;
+  background: #080b16;
+  border-radius: 8px;
+  overflow: hidden;
+}
+#spear-visualizer-stage #visualizer {
+  position: absolute !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  height: calc(100% - 40px) !important;
+  inset: 0 !important;
+  transform: none !important;
+  object-fit: fill !important;
+  cursor: pointer;
+}
+#spear-visualizer-stage #spear-visualizer-tools {
+  position: absolute;
   left: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 4px 8px;
 }
-#visualizer:fullscreen {
-  width: 100vw;
-  height: 100vh;
-  object-fit: contain;
+#spear-visualizer-stage.mini {
+  position: fixed;
+  z-index: 10000;
+  right: 20px;
+  bottom: 88px;
+  width: min(340px, calc(100vw - 40px));
+  height: 220px;
+  box-shadow: 0 6px 24px #0008;
 }
-#visualizer:focus-visible {
-  outline: 2px solid #99c8ff;
-}
-
-#player:fullscreen {
+#spear-visualizer-stage:fullscreen {
   width: 100vw !important;
   height: 100vh !important;
   max-height: none !important;
-  background: #000;
+  border-radius: 0;
 }
-#player:fullscreen > :not(#visualizer) {
-  visibility: hidden;
+#spear-visualizer-stage:fullscreen #visualizer {
+  height: 100% !important;
 }
-#player:fullscreen #visualizer {
-  z-index: 100;
+#spear-visualizer-stage:fullscreen #spear-visualizer-tools {
+  display: none;
+}
+.spear-has-visualizer ytmusic-player[player-ui-state='MINIPLAYER'] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.spear-has-visualizer #main-panel #player-container {
+  display: none !important;
+}
+#visualizer:focus-visible {
+  outline: 2px solid #99c8ff;
 }

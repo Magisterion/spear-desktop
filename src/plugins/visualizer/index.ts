@@ -1,3 +1,5 @@
+import { getAudioGraph } from '@/classic/audio';
+import { createVisualizerStage } from './stage';
 import { t } from '@/i18n';
 import { createPlugin } from '@/utils';
 
@@ -71,6 +73,7 @@ export type VisualizerPluginConfig = {
 
 type RenderProps = {
   visualizerInstance: Visualizer | null;
+  stage: ReturnType<typeof createVisualizerStage> | null;
   audioContext: AudioContext | null;
   audioSource: MediaElementAudioSourceNode | null;
   observer: ResizeObserver | null;
@@ -83,10 +86,10 @@ export default createPlugin({
   restartNeeded: false,
   config: {
     enabled: true,
-    type: 'spectrum',
+    type: 'butterchurn',
     // Config per visualizer
     butterchurn: {
-      preset: 'martin [shadow harlequins shape code] - fata morgana',
+      preset: 'cope + flexi - colorful marble (ghost mix)',
       blendTimeInSeconds: 2.7,
     },
     vudio: {
@@ -180,6 +183,7 @@ export default createPlugin({
   renderer: {
     props: {
       visualizerInstance: null,
+      stage: null,
       audioContext: null,
       audioSource: null,
       observer: null,
@@ -203,8 +207,8 @@ export default createPlugin({
         return;
       }
 
-      const visualizerContainer =
-        document.querySelector<HTMLElement>('#player');
+      this.props.stage ??= createVisualizerStage();
+      const visualizerContainer = this.props.stage.container;
       if (!visualizerContainer) {
         return;
       }
@@ -262,12 +266,14 @@ export default createPlugin({
           void window.ipcRenderer.invoke('classic:navigate', 'equalizer');
         });
         makeButton('Fullscreen', fullscreen);
-        (
-          visualizerContainer.closest('#player-container') ??
-          visualizerContainer
-        ).after(toolbar);
+        visualizerContainer.append(toolbar);
       }
 
+      canvas.width = Math.max(
+        1,
+        Math.round(visualizerContainer.getBoundingClientRect().width),
+      );
+      canvas.height = 180;
       const gainNode = this.props.audioContext.createGain();
       gainNode.gain.value = 1.25;
       this.props.audioSource.connect(gainNode);
@@ -292,30 +298,57 @@ export default createPlugin({
         ].includes(config.type)
       )
         visualizerType = ClassicVisualizer;
-      this.props.visualizerInstance = new visualizerType(
-        this.props.audioContext,
-        this.props.audioSource,
-        canvas,
-        gainNode,
-        config.type === 'vudio' && typeof video.captureStream === 'function'
-          ? video.captureStream()
-          : new MediaStream(),
-        config,
-      );
+      try {
+        this.props.visualizerInstance = new visualizerType(
+          this.props.audioContext,
+          this.props.audioSource,
+          canvas,
+          gainNode,
+          config.type === 'vudio' && typeof video.captureStream === 'function'
+            ? video.captureStream()
+            : new MediaStream(),
+          config,
+        );
+      } catch (error) {
+        // A disabled/unavailable WebGL backend must not leave a black panel.
+        console.warn(
+          'Visualizer unavailable; using the Canvas spectrum.',
+          error,
+        );
+        gainNode.disconnect();
+        const fallback = canvas.cloneNode(false) as HTMLCanvasElement;
+        fallback.onclick = canvas.onclick;
+        fallback.onkeydown = canvas.onkeydown;
+        fallback.oncontextmenu = canvas.oncontextmenu;
+        canvas.replaceWith(fallback);
+        canvas = fallback;
+        canvas.title =
+          'Canvas spectrum fallback. Right-click to select another visualizer.';
+        this.props.visualizerInstance = new ClassicVisualizer(
+          this.props.audioContext,
+          this.props.audioSource,
+          canvas,
+          gainNode,
+          new MediaStream(),
+          { ...config, type: 'spectrum' },
+        );
+      }
 
       const resizeVisualizer = () => {
-        if (canvas && visualizerContainer) {
-          const { width, height } =
-            document.fullscreenElement === visualizerContainer
-              ? {
-                  width: String(window.innerWidth),
-                  height: String(window.innerHeight),
-                }
-              : window.getComputedStyle(visualizerContainer);
-          canvas.width = Math.ceil(parseFloat(width));
-          canvas.height = Math.ceil(parseFloat(height));
+        const rect = visualizerContainer.getBoundingClientRect();
+        const width = Math.max(1, Math.round(rect.width));
+        const height = Math.max(
+          1,
+          Math.round(
+            rect.height -
+              (document.fullscreenElement === visualizerContainer ? 0 : 40),
+          ),
+        );
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          this.props.visualizerInstance?.resize(width, height);
         }
-        this.props.visualizerInstance?.resize(canvas.width, canvas.height);
       };
       resizeVisualizer();
 
@@ -326,6 +359,8 @@ export default createPlugin({
     },
 
     stop() {
+      this.props.stage?.dispose();
+      this.props.stage = null;
       this.props.visualizerInstance?.destroy();
       this.props.visualizerInstance = null;
       this.props.observer?.disconnect();
@@ -344,12 +379,22 @@ export default createPlugin({
     },
 
     async onPlayerApiReady(_, { getConfig }) {
+      const graph = getAudioGraph();
+      if (graph) {
+        this.props.audioContext = graph.audioContext;
+        this.props.audioSource = graph.audioSource;
+      }
       if (this.props.audioListener)
         document.removeEventListener(
           'peard:audio-can-play',
           this.props.audioListener,
         );
       this.props.audioListener = async (e) => {
+        if (
+          this.props.audioSource === e.detail.audioSource &&
+          this.props.visualizerInstance
+        )
+          return;
         this.props.audioContext = e.detail.audioContext;
         this.props.audioSource = e.detail.audioSource;
         this.createVisualizer(await getConfig());

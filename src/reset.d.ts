@@ -11,6 +11,7 @@ declare global {
   interface Compressor {
     audioSource: MediaElementAudioSourceNode;
     audioContext: AudioContext;
+    audioOutput: GainNode;
   }
 
   interface DocumentEventMap {

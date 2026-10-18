@@ -176,6 +176,35 @@
         padding: 20px;
         color: var(--shell-muted, #a9b1bf);
       }
+      .eq-bands {
+        display: grid;
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+        gap: 8px;
+        padding: 16px 8px;
+        margin: 12px 0;
+        border: 1px solid var(--shell-accent, #68758b);
+        border-radius: 6px;
+      }
+      .eq-band {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        min-width: 0;
+      }
+      .eq-band input {
+        writing-mode: vertical-lr;
+        direction: rtl;
+        width: 26px;
+        height: 140px;
+        padding: 0;
+        accent-color: var(--shell-accent, #9eafd0);
+      }
+      .eq-band output {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
     </style>
   </head>
   <body>
@@ -373,40 +402,13 @@
         }
         if (tab === 'Themes' && !query) {
           const a = el('article');
-          a.append(el('h2', 'Shell and player themes'));
-          const select = el('select');
-          select.setAttribute('aria-label', 'Shell theme');
-          data.skins.forEach(({ id, name }) => {
-            const o = el('option', name);
-            o.value = id;
-            select.append(o);
-          });
-          select.value = data.skin;
-          select.onchange = () => request('skin', select.value);
-          const row = el('label', 'Shell theme');
-          row.className = 'row';
-          row.append(select);
-          a.append(row);
+          a.append(el('h2', 'Theme'));
           a.append(
             el(
               'p',
-              'Shell theme colors the title bar, settings and tray widget. Player theme colors the music pages and queue. Album colors can blend with it.',
+              'One theme for the player, title bar, settings and tray widget. Album colors can blend with it.',
             ),
           );
-          const playerRow = el('label', 'Player theme');
-          playerRow.className = 'row';
-          const playerSelect = el('select');
-          playerSelect.setAttribute('aria-label', 'Player theme');
-          data.skins.forEach((p) => {
-            const option = el('option', p.name);
-            option.value = p.id;
-            playerSelect.append(option);
-          });
-          playerSelect.value = data.playerTheme;
-          playerSelect.onchange = () =>
-            request('playerTheme', playerSelect.value);
-          playerRow.append(playerSelect);
-          a.append(playerRow);
           const previews = el('div');
           previews.className = 'theme-previews';
           data.skins.forEach((palette) => {
@@ -416,9 +418,9 @@
             button.style.color = palette.accent;
             button.setAttribute(
               'aria-pressed',
-              String(data.playerTheme === palette.id),
+              String(data.skin === palette.id),
             );
-            button.onclick = () => request('playerTheme', palette.id);
+            button.onclick = () => request('theme', palette.id);
             previews.append(button);
           });
           a.append(previews);
@@ -521,6 +523,72 @@
                 el('small', 'Enabling or disabling requires a restart.'),
               );
             if (p.enabled) p.controls.forEach((c) => control(c, a));
+            if (p.id === 'equalizer' && p.enabled) {
+              const gains = [...data.equalizer.gains];
+              const bands = el('div');
+              bands.className = 'eq-bands';
+              let pending;
+              const save = async () => {
+                clearTimeout(pending);
+                try {
+                  await window.classic.request('equalizer', [...gains]);
+                } catch (error) {
+                  $('error').textContent = String(error);
+                }
+              };
+              [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].forEach(
+                (hz, i) => {
+                  const band = el('label');
+                  band.className = 'eq-band';
+                  const output = el(
+                    'output',
+                    `${gains[i] > 0 ? '+' : ''}${gains[i]} dB`,
+                  );
+                  const slider = el('input');
+                  slider.type = 'range';
+                  slider.min = '-12';
+                  slider.max = '12';
+                  slider.step = '0.5';
+                  slider.value = gains[i];
+                  slider.setAttribute('aria-label', `${hz} Hz gain`);
+                  slider.oninput = () => {
+                    gains[i] = Number(slider.value);
+                    output.textContent = `${gains[i] > 0 ? '+' : ''}${gains[i]} dB`;
+                    data.equalizer = { preset: 'custom', gains: [...gains] };
+                    const custom = [...a.querySelector('select').options].find(
+                      (o) => o.textContent === 'Custom',
+                    );
+                    if (custom) a.querySelector('select').value = custom.value;
+                    clearTimeout(pending);
+                    pending = setTimeout(save, 60);
+                  };
+                  slider.onchange = save;
+                  band.append(
+                    output,
+                    slider,
+                    el('span', hz >= 1000 ? `${hz / 1000}k` : String(hz)),
+                  );
+                  bands.append(band);
+                },
+              );
+              const reset = el('button', 'Reset to Flat');
+              reset.onclick = () => {
+                clearTimeout(pending);
+                const select = a.querySelector('select');
+                const flat = [...select.options].find(
+                  (o) => o.textContent === 'Flat (default)',
+                );
+                if (flat) request('control', flat.value);
+              };
+              a.append(
+                bands,
+                reset,
+                el(
+                  'p',
+                  'Changes apply immediately. Positive boosts automatically reserve headroom to reduce clipping.',
+                ),
+              );
+            }
             content.append(a);
           });
         document.querySelectorAll('details').forEach((d) => {

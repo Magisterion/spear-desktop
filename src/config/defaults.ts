@@ -15,6 +15,7 @@ export interface DefaultConfig {
   'url': string;
   'options': {
     language?: string;
+    classicExperienceVersion: number;
     classicSkin: string;
     classicPlayerTheme: string;
     animatedSpeakers: boolean;
@@ -58,6 +59,7 @@ export const defaultConfig: DefaultConfig = {
   'url': 'https://music.\u0079\u006f\u0075\u0074\u0075\u0062\u0065.com',
   'options': {
     language: 'en',
+    classicExperienceVersion: 0,
     classicSkin: 'graphite',
     classicPlayerTheme: 'graphite',
     animatedSpeakers: true,

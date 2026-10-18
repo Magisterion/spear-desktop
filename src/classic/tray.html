@@ -165,18 +165,27 @@
         color: var(--shell-muted, #9caabd);
         font-variant-numeric: tabular-nums;
       }
-      progress {
+      #progress {
         flex: 1;
         min-width: 0;
-        height: 3px;
+        height: 22px;
+        cursor: pointer;
+        background: transparent;
+        accent-color: var(--shell-accent);
         border: 0;
         appearance: none;
       }
-      progress::-webkit-progress-bar {
+      #progress::-webkit-slider-runnable-track {
+        height: 4px;
         background: #3b4350;
         border-radius: 3px;
       }
-      progress::-webkit-progress-value {
+      #progress::-webkit-slider-thumb {
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        margin-top: -4px;
+        border-radius: 50%;
         background: var(--shell-accent, #aebfda);
         border-radius: 3px;
       }
@@ -237,6 +246,50 @@
       .tools {
         flex-shrink: 0;
       }
+      body {
+        padding: 22px 24px;
+        display: grid;
+        grid-template-rows: 32px 72px minmax(64px, 1fr) 28px;
+        gap: 12px;
+      }
+      .top {
+        margin: 0;
+      }
+      .track {
+        gap: 14px;
+      }
+      .controls {
+        height: auto;
+        min-height: 64px;
+        margin: 0;
+        gap: 18px;
+      }
+      .speaker {
+        width: 40px;
+        height: 64px;
+      }
+      .speaker:first-child {
+        margin-right: auto;
+      }
+      .speaker:last-child {
+        margin-left: auto;
+      }
+      .speaker::after {
+        width: 26px;
+        height: 26px;
+        transform: scale(calc(0.75 + var(--bass, 0) * 0.48));
+        box-shadow: 0 0 calc(var(--bass, 0) * 12px) var(--shell-accent);
+        transition:
+          transform 45ms linear,
+          box-shadow 45ms linear;
+      }
+      .bottom {
+        height: 28px;
+        min-width: 0;
+      }
+      #progress {
+        width: 100%;
+      }
     </style>
   </head>
   <body>
@@ -271,7 +324,7 @@
             />
           </svg>
         </button>
-        <button data-action="game" title="Night Run" aria-label="Night Run">
+        <button data-action="game" title="Pulsefield" aria-label="Pulsefield">
           <svg viewBox="0 0 24 24">
             <path
               d="M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01"
@@ -348,13 +401,15 @@
     </div>
     <div class="bottom">
       <span id="elapsed">0:00</span
-      ><progress
+      ><input
         id="progress"
-        value="0"
+        type="range"
+        min="0"
         max="1"
-        aria-label="Track progress"
-      ></progress
-      ><span id="duration">0:00</span>
+        value="0"
+        step="1"
+        aria-label="Seek track"
+      /><span id="duration">0:00</span>
     </div>
     <span id="status" role="status"></span>
     <script>
@@ -375,6 +430,18 @@
         const v = Math.max(0, Math.floor(Number(s) || 0));
         return Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0');
       };
+      let seeking = false;
+      $('progress').oninput = () => {
+        seeking = true;
+        $('elapsed').textContent = time($('progress').value);
+      };
+      $('progress').onchange = async () => {
+        try {
+          await window.classic.request('seek', Number($('progress').value));
+        } finally {
+          seeking = false;
+        }
+      };
       let refreshing = false;
       let audioAt = 0;
       function audio(level) {
@@ -394,7 +461,8 @@
         try {
           const s = await window.classic.request('song');
           document.body.dataset.speakers = String(s.animatedSpeakers !== false);
-          audio(s.paused ? 0 : s.bass);
+          if (s.paused || Date.now() - audioAt > 250)
+            audio(s.paused ? 0 : s.bass);
           if (s.palette) {
             document.body.dataset.pixel = String(!!s.palette.pixel);
             document.body.style.setProperty(
@@ -429,10 +497,12 @@
             art.hidden = true;
             art.removeAttribute('src');
           }
-          $('elapsed').textContent = time(s.elapsed);
+          if (!seeking) $('elapsed').textContent = time(s.elapsed);
           $('duration').textContent = time(s.duration);
           $('progress').max = Math.max(1, s.duration || 0);
-          $('progress').value = Math.min(s.elapsed || 0, s.duration || 0);
+          $('progress').disabled = !(s.duration > 0);
+          if (!seeking)
+            $('progress').value = Math.min(s.elapsed || 0, s.duration || 0);
         } catch {
         } finally {
           refreshing = false;

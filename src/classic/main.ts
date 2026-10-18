@@ -10,6 +10,7 @@ import { restart } from '@/providers/app-controls';
 import { getSongControls } from '@/providers/song-controls';
 import { registerCallback, type SongInfo } from '@/providers/song-info';
 
+import { presetConfigs, type Preset } from '@/plugins/equalizer/presets';
 import { skins } from './skins';
 import compactCss from './compact.css?inline';
 import localPreload from './preload.cjs?asset';
@@ -24,6 +25,7 @@ let popup: BrowserWindow | null = null;
 let song: Partial<SongInfo> = {};
 let artwork = '';
 let audioLevel = 0;
+let gamePreviousFullscreen: boolean | null = null;
 let audioLevelAt = 0;
 let artworkImage: SongInfo['image'];
 let player: BrowserWindow;
@@ -83,20 +85,23 @@ export function openSettings(win: BrowserWindow, tab?: string) {
 export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
-    popup = localWindow(480, 280, false);
+    popup = localWindow(480, 320, false);
     popup.on('blur', () => popup?.hide());
     popup.on('closed', () => {
       popup = null;
     });
     popup.once('ready-to-show', () => showTrayPopup(win));
+    popup.webContents.on('did-finish-load', () =>
+      popup?.webContents.setZoomFactor(1),
+    );
     popup.loadFile(trayPage);
     return;
   }
   const cursor = screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint(cursor).workArea;
   popup.setPosition(
-    Math.max(area.x, Math.min(cursor.x - 240, area.x + area.width - 480)),
-    Math.max(area.y, Math.min(cursor.y - 290, area.y + area.height - 280)),
+    Math.max(area.x, Math.min(cursor.x - 240, area.x + area.width - 504)),
+    Math.max(area.y, Math.min(cursor.y - 344, area.y + area.height - 344)),
   );
   popup.show();
   popup.focus();
@@ -209,6 +214,19 @@ async function snapshot() {
   );
   const resources = await languageResources();
   return {
+    equalizer: (() => {
+      const eq = config.get('plugins.equalizer') as
+        | { preset?: string; gains?: number[] }
+        | undefined;
+      const preset = eq?.preset ?? 'flat';
+      return {
+        preset,
+        gains:
+          preset === 'custom'
+            ? (eq?.gains ?? [...presetConfigs.flat])
+            : [...(presetConfigs[preset as Preset] ?? presetConfigs.flat)],
+      };
+    })(),
     version: app.getVersion(),
     autoUpdates: config.get('options.autoUpdates'),
     proxy: config.get('options.proxy'),
@@ -238,6 +256,24 @@ async function snapshot() {
     skins: Object.entries(skins).map(([id, palette]) => ({ id, ...palette })),
     restart: [...pendingRestart],
   };
+}
+
+export function migrateClassicPreferences() {
+  if (config.get('options.classicExperienceVersion') >= 1) return;
+  config.set(
+    'options.classicSkin',
+    config.get('options.classicPlayerTheme') ?? 'graphite',
+  );
+  config.setPartial('plugins.equalizer', { enabled: true, preset: 'flat' });
+  const visualizer = config.get('plugins.visualizer') as
+    | { type?: string }
+    | undefined;
+  if (!visualizer?.type || visualizer.type === 'spectrum')
+    config.setPartial('plugins.visualizer', {
+      type: 'butterchurn',
+      butterchurn: { preset: 'cope + flexi - colorful marble (ghost mix)' },
+    });
+  config.set('options.classicExperienceVersion', 1);
 }
 
 export function setupClassic(win: BrowserWindow) {
@@ -271,7 +307,7 @@ export function setupClassic(win: BrowserWindow) {
         symbolColor: palette.text ?? '#edf1f7',
       });
     const contentPalette =
-      skins[config.get('options.classicPlayerTheme')] ?? skins.graphite;
+      skins[config.get('options.classicSkin')] ?? skins.graphite;
     const custom = await Promise.all(
       (config.get('options.themes') ?? []).map((file) =>
         readFile(file, 'utf8').catch(() => ''),
@@ -303,8 +339,11 @@ export function setupClassic(win: BrowserWindow) {
     win.show();
     win.focus();
     popup?.hide();
-    if (action === 'game') win.webContents.send('classic:game');
-    else {
+    if (action === 'game') {
+      gamePreviousFullscreen ??= win.isFullScreen();
+      win.setFullScreen(true);
+      win.webContents.send('classic:game');
+    } else {
       config.setPartial('plugins.visualizer', { enabled: true });
       void win.webContents
         .executeJavaScript(
@@ -349,6 +388,10 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
     if (action === 'game' || action === 'visualizer') openEntertainment(action);
+    if (action === 'game-exit' && gamePreviousFullscreen !== null) {
+      win.setFullScreen(gamePreviousFullscreen);
+      gamePreviousFullscreen = null;
+    }
     if (action === 'settings') openSettings(win);
     if (action === 'equalizer') openSettings(win, 'Equalizer');
     if (action === 'show') {
@@ -376,6 +419,14 @@ export function setupClassic(win: BrowserWindow) {
         };
       if (action === 'game' || action === 'visualizer')
         return openEntertainment(action);
+      if (
+        action === 'seek' &&
+        typeof value === 'number' &&
+        Number.isFinite(value)
+      )
+        return getSongControls(win).seekTo(
+          Math.max(0, Math.min(value, song.songDuration ?? 0)),
+        );
       if (action === 'playPause')
         return win.webContents.send('classic:tray-play');
       if (action === 'next') return getSongControls(win).next();
@@ -393,6 +444,25 @@ export function setupClassic(win: BrowserWindow) {
       if (action === 'quit') return app.quit();
       if (!fromSettings) throw new Error('Settings window required');
       if (action === 'snapshot') return snapshot();
+      if (action === 'equalizer') {
+        if (
+          !Array.isArray(value) ||
+          value.length !== 10 ||
+          !value.every(
+            (v) =>
+              typeof v === 'number' &&
+              Number.isFinite(v) &&
+              v >= -12 &&
+              v <= 12,
+          )
+        )
+          throw new Error('Invalid equalizer gains');
+        config.setPartial('plugins.equalizer', {
+          preset: 'custom',
+          gains: value,
+        });
+        return { ok: true };
+      }
       if (action === 'project')
         return shell.openExternal(
           'https://github.com/Magisterion/spear-desktop',
@@ -432,11 +502,11 @@ export function setupClassic(win: BrowserWindow) {
         win.webContents.send('classic:language', value);
         await refreshMenu(win);
       }
-      if (action === 'skin' && Object.hasOwn(skins, String(value))) {
+      if (
+        ['skin', 'playerTheme', 'theme'].includes(action) &&
+        Object.hasOwn(skins, String(value))
+      ) {
         config.set('options.classicSkin', value);
-        await applyStyle();
-      }
-      if (action === 'playerTheme' && Object.hasOwn(skins, String(value))) {
         config.set('options.classicPlayerTheme', value);
         await applyStyle();
       }

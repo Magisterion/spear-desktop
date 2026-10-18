@@ -107,29 +107,40 @@ test('Spear preferences use local IPC and portable data', async () => {
     ).toBeVisible();
     await settings.getByRole('button', { name: 'Themes', exact: true }).click();
     await settings
-      .getByLabel('Shell theme', { exact: true })
-      .selectOption('amber');
+      .getByRole('button', { name: 'Amber display', exact: true })
+      .click();
     await expect(
-      settings.getByLabel('Shell theme', { exact: true }),
-    ).toHaveValue('amber');
-    await expect(
-      settings.getByLabel('Player theme', { exact: true }),
-    ).toBeVisible();
+      settings.getByRole('button', { name: 'Amber display', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await settings
-      .getByLabel('Player theme', { exact: true })
-      .selectOption('pixel-night');
+      .getByRole('button', { name: 'Pixel night', exact: true })
+      .click();
     await expect(
-      settings.getByLabel('Player theme', { exact: true }),
-    ).toHaveValue('pixel-night');
-    await expect(
-      settings.getByLabel('Shell theme', { exact: true }),
-    ).toHaveValue('amber');
+      settings.getByRole('button', { name: 'Pixel night', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await settings.screenshot({
       path: path.join(root, 'test-results', 'spear-themes.png'),
     });
     const player = app
       .windows()
       .find((w) => w.url().startsWith('https://music.youtube.com'));
+    await player.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'game'),
+    );
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((w) =>
+              w.webContents.getURL().startsWith('https://music.youtube.com'),
+            )
+            ?.isFullScreen(),
+        ),
+      )
+      .toBe(true);
+    await player.evaluate(() =>
+      window.ipcRenderer.invoke('classic:navigate', 'game-exit'),
+    );
     await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'equalizer'),
     );
@@ -138,11 +149,31 @@ test('Spear preferences use local IPC and portable data', async () => {
     ).toHaveAttribute('aria-current', 'true');
     await expect(
       settings.getByLabel('Enable Equalizer', { exact: true }),
-    ).toBeVisible();
+    ).toBeChecked();
+    const preset = settings.getByLabel('Preset', { exact: true });
+    await expect(preset.locator('option')).toHaveCount(9);
+    await preset.selectOption({ label: 'Rock' });
+    await expect(settings.locator('#notice')).not.toBeVisible();
+    await preset.selectOption({ label: 'Flat (default)' });
+    const bassBand = settings.getByRole('slider', {
+      name: '31 Hz gain',
+      exact: true,
+    });
+    await bassBand.focus();
+    await bassBand.press('ArrowUp');
+    await expect(preset.locator('option:checked')).toHaveText('Custom');
+    await expect(bassBand).not.toHaveValue('0');
+    await settings
+      .getByRole('button', { name: 'Reset to Flat', exact: true })
+      .click();
+    await expect(bassBand).toHaveValue('0');
+    await settings.screenshot({
+      path: path.join(root, 'test-results/spear-equalizer.png'),
+    });
     await settings.getByRole('searchbox').fill('Visualizer');
     const visualizerType = settings.locator('select').last();
     await expect(visualizerType.locator('option:checked')).toHaveText(
-      'spectrum',
+      'butterchurn',
     );
     await expect(visualizerType.locator('option')).toHaveCount(10);
     await visualizerType.selectOption({ label: 'oscilloscope' });
@@ -166,10 +197,12 @@ test('Spear preferences use local IPC and portable data', async () => {
       path: path.join(root, 'test-results', 'spear-preferences.png'),
     });
     const fixturePath = path.join(temporary, 'compact-fixture.html');
-    const css = await fs.readFile(
-      path.join(root, 'src/classic/compact.css'),
-      'utf8',
-    );
+    const css =
+      (await fs.readFile(path.join(root, 'src/classic/compact.css'), 'utf8')) +
+      (await fs.readFile(
+        path.join(root, 'src/plugins/visualizer/empty-player.css'),
+        'utf8',
+      ));
     await fs.writeFile(
       fixturePath,
       `<!doctype html><style>
@@ -183,8 +216,8 @@ test('Spear preferences use local IPC and portable data', async () => {
       #visualizer { width:100%; height:100%; } #side-panel { transform:translateY(500px); }
       ${css}</style><ytmusic-app><tp-yt-app-drawer><div id="guide-wrapper"><button>Menu</button></div></tp-yt-app-drawer>
       <ytmusic-app-layout id="layout"><ytmusic-player-page slot="player-page"><div id="columns">
-      <div id="main-panel"><div id="player-container"><div id="player"><canvas id="visualizer"></canvas></div></div>
-      <div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button></div></div>
+      <div id="main-panel"><div id="player-container"><div id="player"></div></div>
+      <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button></div></section></div>
       <div id="side-panel">Queue</div></div></ytmusic-player-page></ytmusic-app-layout></ytmusic-app>`,
     );
     await app.evaluate(({ BrowserWindow }, file) => {
@@ -193,10 +226,21 @@ test('Spear preferences use local IPC and portable data', async () => {
     }, fixturePath);
     const layout = await localWindow(app, 'compact-fixture');
     await layout.waitForLoadState('domcontentloaded');
+    await layout.addScriptTag({
+      content: stripTypeScriptTypes(
+        await fs.readFile(
+          path.join(root, 'src/plugins/visualizer/stage.ts'),
+          'utf8',
+        ),
+      ).replaceAll('export ', ''),
+    });
+    await layout.evaluate(() => {
+      window.stage = createVisualizerStage();
+    });
     const boxes = await layout.evaluate(() =>
       Object.fromEntries(
         [
-          '#player',
+          '#visualizer',
           '#side-panel',
           '#spear-visualizer-tools',
           '#guide-wrapper button',
@@ -215,26 +259,47 @@ test('Spear preferences use local IPC and portable data', async () => {
         }),
       ),
     );
-    expect(boxes['#player'].height).toBe(180);
-    expect(boxes['#player'].right).toBeLessThanOrEqual(720);
+    expect(boxes['#visualizer'].height).toBe(180);
+    expect(boxes['#visualizer'].right).toBeLessThanOrEqual(720);
     expect(boxes['#side-panel'].right).toBeLessThanOrEqual(720);
     expect(boxes['#side-panel'].top).toBeLessThan(300);
     expect(boxes['#spear-visualizer-tools'].top).toBeGreaterThanOrEqual(
-      boxes['#player'].bottom,
+      boxes['#visualizer'].bottom,
     );
     expect(boxes['#guide-wrapper button'].top).toBeGreaterThanOrEqual(40);
+    await layout.evaluate(() => {
+      const player = document.createElement('ytmusic-player');
+      player.setAttribute('player-ui-state', 'MINIPLAYER');
+      document.body.append(player);
+    });
+    await expect(layout.locator('#spear-visualizer-stage')).toHaveClass('mini');
+    await expect(layout.locator('#visualizer')).toHaveCSS('height', '180px');
+    await layout.evaluate(() => {
+      document.querySelector('#spear-visualizer-tools button').onclick = () =>
+        document.querySelector('#spear-visualizer-stage').requestFullscreen();
+    });
+    await layout.locator('#spear-visualizer-tools button').first().click();
+    await expect
+      .poll(() => layout.evaluate(() => document.fullscreenElement?.id))
+      .toBe('spear-visualizer-stage');
+    expect(
+      await layout
+        .locator('#visualizer')
+        .evaluate((el) => el.getBoundingClientRect().height),
+    ).toBeGreaterThan(500);
+    await layout.evaluate(() => document.exitFullscreen());
     await layout.close();
     const trayPreload = path.join(temporary, 'tray-preview.cjs');
     await fs.writeFile(
       trayPreload,
-      "const {contextBridge}=require('electron');contextBridge.exposeInMainWorld('classic',{request:async()=>({title:'A long track title that must stay on one line',artist:'Preview artist',paused:false,elapsed:74,duration:240,artwork:'',palette:{top:'#39346a',bottom:'#1d1b36',accent:'#ffcc66',pixel:true}})});",
+      "const {contextBridge}=require('electron');let last;contextBridge.exposeInMainWorld('classic',{lastRequest:()=>last,request:async(action,value)=>{if(action!=='song')last={action,value};return ({title:'A long track title that must stay on one line',artist:'Preview artist',paused:false,elapsed:74,duration:240,artwork:'',palette:{top:'#39346a',bottom:'#1d1b36',accent:'#ffcc66',pixel:true}})}});",
     );
     const trayOpened = app.waitForEvent('window');
     await app.evaluate(
       ({ BrowserWindow }, { preload, page }) => {
         const win = new BrowserWindow({
           width: 480,
-          height: 280,
+          height: 320,
           frame: false,
           webPreferences: { preload, contextIsolation: true, sandbox: true },
         });
@@ -265,6 +330,16 @@ test('Spear preferences use local IPC and portable data', async () => {
           document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    const seekBox = await tray
+      .getByRole('slider', { name: 'Seek track' })
+      .boundingBox();
+    expect(seekBox.y + seekBox.height).toBeLessThan(300);
+    await tray.getByRole('slider', { name: 'Seek track' }).focus();
+    await tray.getByRole('slider', { name: 'Seek track' }).press('End');
+    expect(await tray.evaluate(() => window.classic.lastRequest())).toEqual({
+      action: 'seek',
+      value: 240,
+    });
     await tray.screenshot({
       path: path.join(root, 'test-results', 'spear-tray.png'),
     });
@@ -276,6 +351,7 @@ test('Spear preferences use local IPC and portable data', async () => {
         height: 650,
         webPreferences: { sandbox: true, contextIsolation: true },
       });
+      preview.webContents.setAudioMuted(true);
       await preview.loadURL(
         'data:text/html,<html><body><video></video></body></html>',
       );
@@ -291,16 +367,22 @@ test('Spear preferences use local IPC and portable data', async () => {
         send: (channel, value) => {
           if (channel === 'classic:audio-level') window.audioLevel = value;
         },
+        invoke: async () => {},
       };
     });
     await game.addScriptTag({
       content: stripTypeScriptTypes(
+        await fs.readFile(path.join(root, 'src/classic/audio.ts'), 'utf8'),
+      ).replaceAll('export ', ''),
+    });
+    await game.addScriptTag({
+      content: stripTypeScriptTypes(
         await fs.readFile(path.join(root, 'src/classic/night-run.ts'), 'utf8'),
-      ),
+      ).replace(/import[^;]+;/, ''),
     });
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(
-      game.getByText('Play music to bring the world to life'),
+      game.getByText('Play music to bring the arena to life'),
     ).toBeVisible();
     await game
       .getByRole('button', { name: 'Autopilot: off', exact: true })
@@ -308,33 +390,51 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(
       game.getByRole('button', { name: 'Autopilot: on', exact: true }),
     ).toBeVisible();
-    await game
-      .getByRole('button', { name: 'Jump · Space', exact: true })
-      .click();
-    await game.evaluate(() => {
-      Object.defineProperty(document.querySelector('video'), 'paused', {
+    await game.evaluate(async () => {
+      const video = document.querySelector('video');
+      Object.defineProperty(video, 'paused', {
         value: false,
         configurable: true,
       });
-      document.dispatchEvent(
-        new CustomEvent('peard:audio-can-play', {
-          detail: {
-            audioSource: { connect() {}, disconnect() {} },
-            audioContext: {
-              createAnalyser: () => ({
-                fftSize: 256,
-                frequencyBinCount: 128,
-                getByteFrequencyData: (bins) => bins.fill(200),
-                disconnect() {},
-              }),
-            },
-          },
-        }),
-      );
+      const context = new AudioContext();
+      await context.resume();
+      const oscillator = context.createOscillator();
+      oscillator.frequency.value = 110;
+      const source = context.createGain();
+      source.gain.value = 0.4;
+      oscillator.connect(source);
+      const output = initializeAudio(context, source, video);
+      const outputMeter = context.createAnalyser();
+      outputMeter.fftSize = 2048;
+      output.connect(outputMeter);
+      window.outputMeter = outputMeter;
+      oscillator.start();
+      window.testTone = source;
     });
     await expect
       .poll(() => game.evaluate(() => window.audioLevel))
-      .toBeGreaterThan(0.7);
+      .toBeGreaterThan(0.4);
+    await expect
+      .poll(() =>
+        game
+          .getByRole('progressbar', { name: 'Music pulse' })
+          .evaluate((el) => el.value),
+      )
+      .toBeGreaterThan(0.4);
+    // A 0.4 sine has RMS 0.283. A parallel dry path would double this.
+    const rms = await game.evaluate(() => {
+      const data = new Float32Array(2048);
+      window.outputMeter.getFloatTimeDomainData(data);
+      return Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
+    });
+    expect(rms).toBeGreaterThan(0.24);
+    expect(rms).toBeLessThan(0.32);
+    await game.keyboard.press('Space');
+    await expect(game.locator('#score')).toContainText('charging');
+    await expect(game.locator('#score')).toContainText(/2 s/);
+    await game.screenshot({
+      path: path.join(root, 'test-results/spear-pulsefield.png'),
+    });
     await game.evaluate(() =>
       Object.defineProperty(document.querySelector('video'), 'paused', {
         value: true,
@@ -342,13 +442,10 @@ test('Spear preferences use local IPC and portable data', async () => {
       }),
     );
     await expect.poll(() => game.evaluate(() => window.audioLevel)).toBe(0);
-    await game.screenshot({
-      path: path.join(root, 'test-results/spear-night-run.png'),
-    });
     await game.keyboard.press('Escape');
-    await expect(game.locator('#spear-night-run')).toHaveCount(0);
+    await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.evaluate(() => window.gameListeners['classic:game']());
-    await expect(game.locator('#spear-night-run')).toHaveCount(1);
+    await expect(game.locator('#spear-pulsefield')).toHaveCount(1);
     await game.close();
     const consent = await app.firstWindow();
     await consent.route('https://consent.youtube.com/**', (route) =>

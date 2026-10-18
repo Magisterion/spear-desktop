@@ -23,7 +23,11 @@ import {
 import electronDebug from 'electron-debug';
 import is from 'electron-is';
 import unhandled from 'electron-unhandled';
-import { setupClassic, markRestartNeeded } from './classic/main';
+import {
+  setupClassic,
+  markRestartNeeded,
+  migrateClassicPreferences,
+} from './classic/main';
 import { checkPortableUpdate } from './classic/updater';
 import { deepEqual } from 'fast-equals';
 import { parse } from 'node-html-parser';
@@ -307,6 +311,7 @@ async function createMainWindow() {
     backgroundColor: '#000',
     show: false,
     webPreferences: {
+      backgroundThrottling: false,
       contextIsolation: true,
       preload: path.join(__dirname, '..', 'preload', 'preload.cjs'),
       ...(isTesting()
@@ -607,6 +612,7 @@ app.on('activate', async () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (mainWindow === null) {
+    migrateClassicPreferences();
     mainWindow = await createMainWindow();
   } else if (!mainWindow.isVisible()) {
     mainWindow.show();
@@ -738,6 +744,7 @@ app.whenReady().then(async () => {
     }
   });
 
+  migrateClassicPreferences();
   mainWindow = await createMainWindow();
   await setApplicationMenu(mainWindow);
   await refreshMenu(mainWindow);

@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 5a7b54ad0a9f0306c87f85b00db7daff00d354e8
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Make portable update verification independent of PowerShell module inheritance")
+          test "$(git rev-parse HEAD^)" = 578f66718ad16dcfca0f94704bae290c9f86fdc7
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Unify audio analysis, themes and visualizer surfaces with Pulsefield")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -82,7 +82,8 @@ jobs:
             test-results/spear-themes.png
             test-results/spear-tray.png
             test-results/spear-update.png
-            test-results/spear-night-run.png
+            test-results/spear-pulsefield.png
+            test-results/spear-equalizer.png
           retention-days: 7
   release:
     if: always() && needs.windows.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))

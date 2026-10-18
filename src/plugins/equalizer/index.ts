@@ -1,88 +1,62 @@
 import { t } from '@/i18n';
 import { createPlugin } from '@/utils';
-
-import {
-  defaultPresets,
-  presetConfigs,
-  type Preset,
-  type FilterConfig,
-} from './presets';
-
-import type { MenuTemplate } from '@/menu';
-import type { MenuContext } from '@/types/contexts';
-
+import { setEqualizer } from '@/classic/audio';
+import { presetConfigs, presetNames, type Preset } from './presets';
 export type EqualizerPluginConfig = {
   enabled: boolean;
-  filters: FilterConfig[];
-  presets: { [preset in Preset]: boolean };
+  preset: Preset | 'custom';
+  gains: number[];
 };
-
-let appliedFilters: BiquadFilterNode[] = [];
-
+function apply(config: EqualizerPluginConfig) {
+  setEqualizer(
+    config.preset === 'custom'
+      ? config.gains
+      : [...(presetConfigs[config.preset] ?? presetConfigs.flat)],
+    config.enabled,
+  );
+}
 export default createPlugin({
   name: () => t('plugins.equalizer.name'),
-  description: () => t('plugins.equalizer.description'),
+  description: () =>
+    'Ten-band equalizer with live presets and automatic boost headroom.',
   restartNeeded: false,
-  addedVersion: '3.7.X',
   config: {
-    enabled: false,
-    filters: [],
-    presets: { 'bass-booster': false },
+    enabled: true,
+    preset: 'flat',
+    gains: [...presetConfigs.flat],
   } as EqualizerPluginConfig,
-  menu: async ({
-    getConfig,
-    setConfig,
-  }: MenuContext<EqualizerPluginConfig>): Promise<MenuTemplate> => {
+  menu: async ({ getConfig, setConfig }) => {
     const config = await getConfig();
-
     return [
       {
-        label: t('plugins.equalizer.menu.presets.label'),
-        type: 'submenu',
-        submenu: defaultPresets.map((preset) => ({
-          label: t(`plugins.equalizer.menu.presets.list.${preset}`),
-          type: 'radio',
-          checked: config.presets[preset],
-          click() {
-            setConfig({
-              presets: { ...config.presets, [preset]: !config.presets[preset] },
-            });
+        label: 'Preset',
+        submenu: [
+          ...(Object.keys(presetConfigs) as Preset[]).map((preset) => ({
+            label: presetNames[preset],
+            type: 'radio' as const,
+            checked: (config.preset ?? 'flat') === preset,
+            click: () =>
+              setConfig({ preset, gains: [...presetConfigs[preset]] }),
+          })),
+          {
+            label: 'Custom',
+            type: 'radio' as const,
+            checked: config.preset === 'custom',
+            click: () => setConfig({ preset: 'custom' }),
           },
-        })),
+        ],
       },
     ];
   },
   renderer: {
     async start({ getConfig }) {
-      const config = await getConfig();
-
-      document.addEventListener(
-        'peard:audio-can-play',
-        ({ detail: { audioSource, audioContext } }) => {
-          const filtersToApply = config.filters.concat(
-            defaultPresets
-              .filter((preset) => config.presets[preset])
-              .map((preset) => presetConfigs[preset]),
-          );
-          filtersToApply.forEach((filter) => {
-            const biquadFilter = audioContext.createBiquadFilter();
-            biquadFilter.type = filter.type;
-            biquadFilter.frequency.value = filter.frequency; // filter frequency in Hz
-            biquadFilter.Q.value = filter.Q;
-            biquadFilter.gain.value = filter.gain; // filter gain in dB
-
-            audioSource.connect(biquadFilter);
-            biquadFilter.connect(audioContext.destination);
-
-            appliedFilters.push(biquadFilter);
-          });
-        },
-        { once: true, passive: true },
-      );
+      apply(await getConfig());
+    },
+    onConfigChange(config) {
+      apply(config);
     },
     stop() {
-      appliedFilters.forEach((filter) => filter.disconnect());
-      appliedFilters = [];
+      setEqualizer([...presetConfigs.flat], false);
     },
   },
 });

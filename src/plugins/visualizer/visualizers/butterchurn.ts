@@ -20,7 +20,12 @@ class ButterchurnVisualizer extends Visualizer {
   ) {
     super(audioSource, audioNode);
 
-    const preset = ButterchurnPresets[config.butterchurn.preset];
+    const presets = (ButterchurnPresets.default ??
+      ButterchurnPresets) as Record<string, unknown>;
+    const preset =
+      presets[config.butterchurn.preset] ??
+      presets['cope + flexi - colorful marble (ghost mix)'] ??
+      Object.values(presets)[0];
     const renderVisualizer = () => {
       if (this.destroyed) return;
       this.visualizer.render();

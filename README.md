@@ -17,9 +17,10 @@ Manual launches open the player, including the first launch for sign-in. Windows
 - **Classic desktop controls:** compact navigation buttons, a wider default window near the tray, and remembered window placement.
 - **Proper preferences:** searchable settings, categorized plugins, language selection, and live changes wherever supported.
 - **A richer tray widget:** track information, playback controls, quick access to settings, games and visualizers, a visible exit button, and optional audio-reactive speakers.
-- **Retro themes:** eleven original color palettes, including silver decks, phosphor displays and pixel-inspired styles. Shell and music-page themes can be selected separately; the widget follows the shell.
-- **More visualizers:** original spectrum, oscilloscope, spectrum history, radial, mirrored, starfield and ribbon modes alongside Pear's existing engines. Compact playback view, fullscreen shortcuts and a right-click mode selector.
-- **Night Run:** an original pixel-art runner with track-seeded scenery, audio-reactive motion, two lanes, jumping and an autopilot. Play without music or let your current track bring it to life. Space jumps, arrow keys switch lanes, and Escape returns to the player.
+- **Retro themes:** eleven original color palettes, including silver decks, phosphor displays and pixel-inspired styles. One selection applies to the music pages, title bar, settings and tray widget.
+- **Live equalizer:** ten live frequency sliders, eight presets, saved custom tuning, a neutral default and automatic headroom for boosts.
+- **More visualizers:** original spectrum, oscilloscope, spectrum history, radial, mirrored, starfield and ribbon modes alongside Pear's existing engines. Colorful MilkDrop-style Butterchurn by default, an independent compact/mini view, fullscreen shortcuts and a right-click mode selector.
+- **Pulsefield:** an original fullscreen geometric dodge game. Audio drives expanding waves, incoming shapes, lighting and intensity. Move with the mouse, WASD or arrows; Space or a click dashes through danger. Escape returns to music. Includes an autopilot and a quiet practice space when playback is paused.
 - **Windows portable releases:** one executable, adjacent local data, and updates from this fork with download progress, cancellation and saved verified downloads for later.
 
 Pear's music player and plugin ecosystem remain the foundation. Spear adds the desktop interface and features above; it does not claim authorship of upstream plugins.
@@ -49,7 +50,7 @@ Only Windows x64 portable artifacts are published. Branches and pull requests pr
 
 - [Pear Desktop](https://github.com/pear-devs/pear-desktop): original application, MIT.
 - Butterchurn, Vudio and Wave retain their upstream licenses and attribution in the bundled dependency notices.
-- Spear's added Canvas visualizers, Night Run artwork and theme palettes are original implementations under this repository's MIT license. No Winamp skins, logos or proprietary artwork are bundled.
+- Spear's added Canvas visualizers, Pulsefield artwork and theme palettes are original implementations under this repository's MIT license. No Winamp skins, logos or proprietary artwork are bundled.
 
 ## Verification notes
 

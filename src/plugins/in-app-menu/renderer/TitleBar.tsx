@@ -98,7 +98,7 @@ export const TitleBar = (props: TitleBarProps) => {
             [
               'game',
               'M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01',
-              'Night Run',
+              'Pulsefield',
             ],
             [
               'visualizer',

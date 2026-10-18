@@ -1,60 +1,33 @@
-// Original procedural artwork. Audio analysis is a silent branch of the existing graph.
-let analyser: AnalyserNode | null = null;
-let source: MediaElementAudioSourceNode | null = null;
-let bins = new Uint8Array(128);
-let bass = 0;
-let energy = 0;
-let lastSample = 0;
+import { audioMotion } from './audio';
+// Original geometric artwork and mechanics. No borrowed game assets or levels.
 let closeGame: (() => void) | null = null;
-
-document.addEventListener('peard:audio-can-play', ({ detail }) => {
-  if (source === detail.audioSource) return;
-  if (source && analyser) source.disconnect(analyser);
-  analyser?.disconnect();
-  source = detail.audioSource;
-  analyser = detail.audioContext.createAnalyser();
-  analyser.fftSize = 256;
-  analyser.smoothingTimeConstant = 0.65;
-  bins = new Uint8Array(analyser.frequencyBinCount);
-  source.connect(analyser);
-});
-setInterval(() => {
-  const video = document.querySelector('video');
-  bass = energy = 0;
-  if (analyser && video && !video.paused && !video.ended) {
-    analyser.getByteFrequencyData(bins);
-    bass = bins.slice(1, 6).reduce((a, b) => a + b, 0) / (5 * 255);
-    energy = bins.reduce((a, b) => a + b, 0) / (bins.length * 255);
-  }
-  lastSample = performance.now();
-  window.ipcRenderer.send('classic:audio-level', bass);
-}, 80);
-
 function openGame() {
   if (closeGame) return;
+  const previousFocus = document.activeElement as HTMLElement | null;
   const host = document.createElement('div');
-  host.id = 'spear-night-run';
+  host.id = 'spear-pulsefield';
   Object.assign(host.style, {
     position: 'fixed',
-    inset: '40px 0 0',
-    zIndex: '9999999',
-    background: '#101021',
+    inset: '0',
+    zIndex: '2147483646',
+    background: '#07101c',
   });
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = `:host{color:#eee;font:14px Consolas,monospace}*{box-sizing:border-box}section{height:100%;display:flex;flex-direction:column;background:#101021}header,footer{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap}strong{color:#a8f7df}button{font:inherit;color:#eee;background:#282841;border:1px solid #7167ac;padding:9px 12px;cursor:pointer}button:focus-visible{outline:2px solid #a8f7df}canvas{width:100%;min-height:0;flex:1;object-fit:contain;image-rendering:pixelated;touch-action:none}#status{flex:1;min-width:160px;font-size:12px;color:#c5bfdc}footer{font-size:12px;color:#c5bfdc}#score{margin-left:auto}`;
+  style.textContent = `*{box-sizing:border-box}:host{color:#effcff;font:14px system-ui}section{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#07101c}header,footer{display:flex;align-items:center;gap:16px;padding:14px 24px;flex-wrap:wrap;background:#0c1828}strong{letter-spacing:3px;color:#75f6d4}button{padding:9px 15px;background:#203449;color:#effcff;border:1px solid #4e7188;border-radius:6px;font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #75f6d4}#status{flex:1;color:#b4cbd8}canvas{display:block;width:100%;height:100%;min-height:0;touch-action:none}footer{font-size:12px;color:#b4cbd8}progress{width:100px;height:8px;accent-color:#75f6d4}#score{margin-left:auto}`;
   root.append(style);
-  const section = document.createElement('section');
-  const header = document.createElement('header');
+  const section = document.createElement('section'),
+    header = document.createElement('header'),
+    footer = document.createElement('footer');
   const title = document.createElement('strong');
-  title.textContent = 'NIGHT RUN';
+  title.textContent = 'PULSEFIELD';
   const status = document.createElement('span');
   status.id = 'status';
   status.setAttribute('role', 'status');
-  const button = (label: string, action: () => void) => {
+  const button = (label: string, callback: () => void) => {
     const b = document.createElement('button');
     b.textContent = label;
-    b.onclick = action;
+    b.onclick = callback;
     return b;
   };
   let autopilot = false;
@@ -62,216 +35,369 @@ function openGame() {
     autopilot = !autopilot;
     auto.textContent = `Autopilot: ${autopilot ? 'on' : 'off'}`;
   });
-  const exit = button('Close · Esc', () => closeGame?.());
-  header.append(title, status, auto, exit);
+  header.append(
+    title,
+    status,
+    auto,
+    button('Close · Esc', () => closeGame?.()),
+  );
   const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 360;
   canvas.tabIndex = 0;
   canvas.setAttribute(
     'aria-label',
-    'Night Run. Space to jump, arrow keys to switch lanes, Escape to close.',
+    'Pulsefield. Move with WASD, arrows or mouse. Space to dash. Escape to return.',
   );
-  const footer = document.createElement('footer');
+  const hint = document.createElement('span');
+  hint.textContent = 'Move: WASD / arrows / mouse · Dash: Space / click';
+  const meter = document.createElement('progress');
+  meter.max = 1;
+  meter.value = 0;
+  meter.setAttribute('aria-label', 'Music pulse');
   const score = document.createElement('span');
   score.id = 'score';
-  footer.append(
-    button('Jump · Space', () => jump()),
-    button('Switch lane · ↑ / ↓', () => {
-      lane = 1 - lane;
-    }),
-    score,
-  );
+  footer.append(hint, meter, score);
   section.append(header, canvas, footer);
   root.append(section);
   document.body.append(host);
-  const ctx = canvas.getContext('2d')!;
-  const previousFocus = document.activeElement as HTMLElement | null;
   canvas.focus();
-  let lane = 1,
-    height = 0,
-    velocity = 0,
-    distance = 0,
-    combo = 1,
-    flash = 0;
-  let clock = 0,
-    spawn = 1.5,
-    last = performance.now(),
-    raf = 0,
+  const ctx = canvas.getContext('2d')!;
+  let w = 960,
+    h = 540,
+    x = 480,
+    y = 270,
+    targetX = x,
+    targetY = y;
+  let last = performance.now(),
+    clock = 0,
+    survived = 0,
+    lastBeat = audioMotion.beat,
+    pulse = 0,
+    spawn = 0.5;
+  let dash = 0,
+    cooldown = 0,
+    shield = 2,
+    hits = 0,
     seed = 1,
-    hue = 240,
-    scene = 0;
-  let track = '',
-    titlePoll = 0;
-  let obstacles: { x: number; lane: number; hit: boolean }[] = [];
+    track = '',
+    titleTimer = 0,
+    raf = 0;
+  let usePointer = false;
+  const keys = new Set<string>();
+  type Particle = {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    age: number;
+    size: number;
+  };
+  type Hazard = {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    r: number;
+    age: number;
+    kind: 'orb' | 'ring' | 'beam';
+    angle: number;
+  };
+  let hazards: Hazard[] = [],
+    particles: Particle[] = [];
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
   };
-  function jump() {
-    if (height === 0) velocity = 260;
-  }
-  const key = (event: KeyboardEvent) => {
+  const burst = (bx: number, by: number, count = 12) => {
+    for (let i = 0; i < count; i++) {
+      const a = random() * Math.PI * 2;
+      particles.push({
+        x: bx,
+        y: by,
+        vx: Math.cos(a) * (40 + random() * 160),
+        vy: Math.sin(a) * (40 + random() * 160),
+        age: 0,
+        size: 2 + random() * 3,
+      });
+    }
+  };
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect();
+    w = 960;
+    h = Math.max(300, Math.round((w * rect.height) / Math.max(1, rect.width)));
+    canvas.width = w;
+    canvas.height = h;
+    x = Math.min(x, w - 20);
+    y = Math.min(y, h - 20);
+  };
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  resize();
+  const doDash = () => {
+    if (cooldown <= 0) {
+      dash = 0.22;
+      cooldown = 1.2;
+      burst(x, y, 18);
+    }
+  };
+  const down = (event: KeyboardEvent) => {
+    const key = event.key.toLowerCase();
     if (
       ![
-        'Escape',
+        'escape',
         ' ',
-        'ArrowUp',
-        'ArrowDown',
-        'ArrowLeft',
-        'ArrowRight',
-      ].includes(event.key)
+        'w',
+        'a',
+        's',
+        'd',
+        'arrowup',
+        'arrowdown',
+        'arrowleft',
+        'arrowright',
+      ].includes(key)
     )
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (event.repeat) return;
-    if (event.key === 'Escape') closeGame?.();
-    else if (event.key === ' ') jump();
-    else lane = 1 - lane;
+    if (key === 'escape') closeGame?.();
+    else if (key === ' ') {
+      if (!event.repeat) doDash();
+    } else {
+      keys.add(key);
+      usePointer = false;
+    }
   };
-  window.addEventListener('keydown', key, true);
-  canvas.onpointerdown = jump;
+  const up = (event: KeyboardEvent) => keys.delete(event.key.toLowerCase());
+  const blur = () => keys.clear();
+  window.addEventListener('keydown', down, true);
+  window.addEventListener('keyup', up, true);
+  window.addEventListener('blur', blur);
+  canvas.onpointermove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    targetX = ((e.clientX - r.left) / r.width) * w;
+    targetY = ((e.clientY - r.top) / r.height) * h;
+    usePointer = true;
+  };
+  canvas.onpointerdown = doDash;
   closeGame = () => {
     cancelAnimationFrame(raf);
-    window.removeEventListener('keydown', key, true);
+    observer.disconnect();
+    window.removeEventListener('keydown', down, true);
+    window.removeEventListener('keyup', up, true);
+    window.removeEventListener('blur', blur);
     host.remove();
     closeGame = null;
     previousFocus?.focus();
+    void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
   };
-  const rect = (x: number, y: number, w: number, h: number, color: string) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.round(x), Math.round(y), w, h);
-  };
-  const frame = (now: number) => {
-    const dt = Math.min((now - last) / 1000, 0.04);
+  function spawnWave(beat: boolean) {
+    if (hazards.length > 80) return;
+    if (beat) {
+      pulse = 1;
+      const bx = random() * w,
+        by = random() * h;
+      hazards.push({
+        x: bx,
+        y: by,
+        vx: 0,
+        vy: 0,
+        r: 4,
+        age: -0.55,
+        kind: 'ring',
+        angle: random() * Math.PI * 2,
+      });
+      burst(bx, by, 16);
+    } else {
+      const left = random() < 0.5,
+        bx = left ? -15 : w + 15,
+        by = random() * h;
+      const angle = Math.atan2(y - by, x - bx);
+      hazards.push({
+        x: bx,
+        y: by,
+        vx: Math.cos(angle) * (110 + audioMotion.energy * 130),
+        vy: Math.sin(angle) * (110 + audioMotion.energy * 130),
+        r: 8 + random() * 7,
+        age: -0.5,
+        kind: 'orb',
+        angle: 0,
+      });
+      if (random() < 0.22)
+        hazards.push({
+          x: 40 + random() * (w - 80),
+          y: 0,
+          vx: 0,
+          vy: 0,
+          r: 14,
+          age: -1.15,
+          kind: 'beam',
+          angle: 0,
+        });
+    }
+  }
+  function frame(now: number) {
+    const dt = Math.min(0.04, (now - last) / 1000);
     last = now;
     if (document.hidden) {
       raf = requestAnimationFrame(frame);
       return;
     }
     clock += dt;
-    titlePoll -= dt;
-    const video = document.querySelector('video');
-    const active = !!video && !video.paused && !video.ended;
-    const low = active && now - lastSample < 500 ? bass : 0;
-    const power = active ? energy : 0;
-    if (titlePoll <= 0) {
-      titlePoll = 1;
+    titleTimer -= dt;
+    const active = audioMotion.active,
+      energy = active ? audioMotion.energy : 0,
+      bass = active ? audioMotion.bass : 0;
+    if (titleTimer <= 0) {
+      titleTimer = 0.5;
       const name =
         document
           .querySelector('ytmusic-player-bar .title')
-          ?.textContent?.trim() || 'Night Run';
-      const artist =
-        document
-          .querySelector('ytmusic-player-bar .byline')
           ?.textContent?.trim() || '';
-      const identity = name + artist;
-      if (track !== identity) {
-        track = identity;
+      if (name !== track) {
+        track = name;
         seed = 2166136261;
         for (const c of track)
           seed = Math.imul(seed ^ c.charCodeAt(0), 16777619) >>> 0;
-        hue = seed % 360;
-        scene = seed % 3;
-        obstacles = [];
-        spawn = 1.5;
-        combo = 1;
+        hazards = [];
+        survived = 0;
+        shield = 2;
       }
       status.textContent = active
-        ? name
-        : 'Play music to bring the world to life';
+        ? name || 'Follow the music. Dodge the shapes.'
+        : 'Play music to bring the arena to life';
     }
-    const speed = 115 + power * 110;
-    distance += speed * dt;
-    spawn -= dt;
-    flash = Math.max(0, flash - dt);
-    if (spawn <= 0) {
-      obstacles.push({ x: 660, lane: random() < 0.5 ? 0 : 1, hit: false });
-      spawn = 1.25 + random() * 0.9 - power * 0.3;
+    if (active) {
+      survived += dt;
+      spawn -= dt;
+      if (audioMotion.beat !== lastBeat) {
+        lastBeat = audioMotion.beat;
+        spawnWave(true);
+      }
+      if (spawn <= 0) {
+        spawnWave(false);
+        spawn = 0.85 - energy * 0.45;
+      }
     }
-    if (
-      autopilot &&
-      obstacles.some((o) => !o.hit && o.lane === lane && o.x > 105 && o.x < 155)
-    )
-      jump();
-    velocity -= 650 * dt;
-    height = Math.max(0, height + velocity * dt);
-    if (!height) velocity = 0;
-    rect(0, 0, 640, 360, `hsl(${hue} 35% ${9 + low * 5}%)`);
-    for (let i = 0; i < 45; i++)
-      rect(
-        (i * 137 + 640 - ((distance * 0.08) % 640)) % 640,
-        (i * 47) % 160,
-        2,
-        2,
-        `hsl(${hue} 40% ${45 + low * 35}%)`,
-      );
-    rect(500, 35, 32, 32, `hsl(${(hue + 50) % 360} 45% 78%)`);
-    for (let i = 0; i < 15; i++) {
-      const x = i * 55 - ((distance * 0.22) % 55);
-      const h = 25 + ((i * 37) % 85);
-      const color = `hsl(${hue} 25% ${18 + low * 5}%)`;
-      if (scene === 1) {
-        rect(x + 20, 205 - h, 7, h, color);
-        rect(x + 4, 205 - h, 39, 30, color);
-        rect(x + 12, 185 - h, 23, 22, color);
+    pulse = Math.max(0, pulse - dt * 2.8);
+    dash = Math.max(0, dash - dt);
+    cooldown = Math.max(0, cooldown - dt);
+    shield = Math.max(0, shield - dt);
+    let dx =
+      Number(keys.has('d') || keys.has('arrowright')) -
+      Number(keys.has('a') || keys.has('arrowleft'));
+    let dy =
+      Number(keys.has('s') || keys.has('arrowdown')) -
+      Number(keys.has('w') || keys.has('arrowup'));
+    if (autopilot) {
+      targetX = w * (0.5 + 0.32 * Math.sin(clock * 0.7));
+      targetY = h * (0.5 + 0.3 * Math.cos(clock * 0.9));
+    }
+    if (autopilot || usePointer) {
+      dx = targetX - x;
+      dy = targetY - y;
+    }
+    const length = Math.hypot(dx, dy),
+      speed = dash ? 880 : 280;
+    if (length > 0) {
+      const step = Math.min(length, speed * dt);
+      if (autopilot || usePointer) {
+        x += (dx / length) * step;
+        y += (dy / length) * step;
       } else {
-        rect(x, 205 - h, 42, h, color);
-        for (let y = 215 - h; y < 195; y += 16)
-          rect(
-            x + 10,
-            y,
-            scene === 2 ? 25 : 5,
-            4,
-            `hsl(${hue + 90} 55% ${25 + low * 35}%)`,
-          );
+        x += (dx / length) * speed * dt;
+        y += (dy / length) * speed * dt;
       }
     }
-    for (let row = 0; row < 2; row++) {
-      const ground = 255 + row * 72;
-      rect(0, ground, 640, 3, `hsl(${hue + 100} 65% ${40 + low * 30}%)`);
-      for (let i = 0; i < 22; i++)
-        rect(i * 32 - (distance % 32), ground + 12, 14, 2, '#35364f');
-      for (const o of obstacles.filter((o) => o.lane === row)) {
-        o.x -= speed * dt;
-        rect(o.x, ground - 22, 20, 22, o.hit ? '#695e7c' : '#ed9d83');
-        rect(o.x + 4, ground - 18, 12, 4, '#ffe3ae');
-        if (
-          !o.hit &&
-          row === lane &&
-          o.x < 112 &&
-          o.x + 20 > 92 &&
-          height < 23
-        ) {
-          o.hit = true;
-          combo = 1;
-          flash = 0.3;
+    x = Math.max(12, Math.min(w - 12, x));
+    y = Math.max(12, Math.min(h - 12, y));
+    ctx.fillStyle = `rgb(${7 + pulse * 8},${16 + bass * 12},${28 + bass * 22})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = `rgba(70,150,180,${0.08 + energy * 0.1})`;
+    ctx.lineWidth = 1;
+    for (let gx = -40 + ((clock * (10 + energy * 25)) % 40); gx < w; gx += 40) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, h);
+      ctx.stroke();
+    }
+    for (let gy = 0; gy < h; gy += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(w, gy);
+      ctx.stroke();
+    }
+    // A wide edge spectrum makes quiet/loud changes immediately readable.
+    for (let i = 0; i < 32; i++) {
+      const size =
+        (10 + bass * 70) * (0.3 + Math.abs(Math.sin(i * 0.4 + clock)) * 0.7);
+      ctx.fillStyle = `hsla(${165 + i * 3},80%,65%,${0.12 + energy * 0.3})`;
+      ctx.fillRect((i * w) / 32, h - size, w / 32 - 4, size);
+    }
+    let collision = false;
+    for (const o of hazards) {
+      o.age += dt * (active ? 1 : 0.2);
+      const warning = o.age < 0;
+      ctx.strokeStyle = warning ? '#ffd99677' : '#ffac62';
+      ctx.fillStyle = warning ? '#ffd99633' : '#ffac62';
+      ctx.lineWidth = warning ? 2 : 5;
+      if (o.kind === 'orb') {
+        if (!warning && active) {
+          o.x += o.vx * dt;
+          o.y += o.vy * dt;
         }
-        if (!o.hit && o.x < 70) {
-          o.hit = true;
-          combo = Math.min(99, combo + 1);
-        }
-      }
-      if (row === lane) {
-        const y = ground - 28 - height;
-        rect(94, y, 16, 14, flash ? '#ed9d83' : '#a8f7df');
-        rect(105, y + 4, 4, 4, '#182733');
-        rect(92, y + 14, 16, 9, '#8a81d7');
-        const step = height ? 0 : (Math.floor(clock * 12) % 2) * 5;
-        rect(92 + step, y + 23, 6, 5, '#a8f7df');
-        rect(105 - step, y + 23, 6, 5, '#a8f7df');
-        rect(75 - low * 10, y + 15, 18 + low * 10, 4, '#dc88b5');
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r * (1 + bass * 0.2), 0, Math.PI * 2);
+        warning ? ctx.stroke() : ctx.fill();
+        collision ||= !warning && Math.hypot(o.x - x, o.y - y) < o.r + 9;
+      } else if (o.kind === 'ring') {
+        if (!warning && active) o.r += dt * (85 + energy * 75);
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r, o.angle + 0.55, o.angle + Math.PI * 2 - 0.55);
+        ctx.stroke();
+        let angle = Math.atan2(y - o.y, x - o.x) - o.angle;
+        angle = Math.atan2(Math.sin(angle), Math.cos(angle));
+        collision ||=
+          !warning &&
+          Math.abs(angle) > 0.55 &&
+          Math.abs(Math.hypot(x - o.x, y - o.y) - o.r) < 11;
+      } else {
+        ctx.fillRect(o.x - (warning ? 1 : o.r), 0, warning ? 2 : o.r * 2, h);
+        collision ||= !warning && Math.abs(x - o.x) < o.r + 8;
       }
     }
-    obstacles = obstacles.filter((o) => o.x > -30);
-    score.textContent = `${Math.floor(distance / 10)} m · ×${combo}${autopilot ? ' · AUTO' : ''}`;
+    hazards = hazards.filter((o) =>
+      o.kind === 'beam'
+        ? o.age < 0.22
+        : o.age < 8 && o.x > -80 && o.x < w + 80 && o.y > -80 && o.y < h + 80,
+    );
+    if (collision && !shield && !dash && active) {
+      hits++;
+      shield = 1.4;
+      burst(x, y, 26);
+    }
+    for (const p of particles) {
+      p.age += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      ctx.fillStyle = `rgba(117,246,212,${Math.max(0, 1 - p.age)})`;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    particles = particles.filter((p) => p.age < 1);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4 + clock * 0.25);
+    ctx.shadowColor = '#75f6d4';
+    ctx.shadowBlur = dash ? 28 : 12;
+    ctx.fillStyle =
+      shield && Math.floor(clock * 12) % 2 ? '#d7fff2' : '#75f6d4';
+    ctx.fillRect(-9, -9, 18, 18);
+    ctx.restore();
+    meter.value = Math.max(bass, energy);
+    score.textContent = `${Math.floor(survived)} s · Hits ${hits} · Dash ${cooldown ? 'charging' : 'ready'}`;
     raf = requestAnimationFrame(frame);
-  };
+  }
   raf = requestAnimationFrame(frame);
 }
 window.ipcRenderer.on('classic:game', openGame);
-
 window.addEventListener('spear:fullscreen-visualizer', () => {
   closeGame?.();
   const canvas = document.querySelector<HTMLCanvasElement>('#visualizer');
