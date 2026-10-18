@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = bb4b9133620b99946c019d93d83f9ebae75aa3c0
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Replace PowerShell updates with a verified native portable updater")
+          test "$(git rev-parse HEAD^)" = a9d8237087e4ed649709fab897ab3857872854c5
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Use absolute Windows paths for the native updater compiler")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -56,7 +56,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build/updater | Out-Null
-          & "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe" /nologo /target:winexe /reference:System.Web.Extensions.dll /reference:System.Windows.Forms.dll /out:build/updater/Spear-Update.exe scripts/updater/PortableUpdater.cs
+          $source = Join-Path $PWD 'scripts\updater\PortableUpdater.cs'
+          $output = Join-Path $PWD 'build\updater\Spear-Update.exe'
+          & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /reference:System.Web.Extensions.dll /reference:System.Windows.Forms.dll "/out:$output" "$source"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: pnpm typecheck
       - run: pnpm build
