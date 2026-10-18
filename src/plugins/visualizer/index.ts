@@ -1,3 +1,4 @@
+import { milkdropPresets } from './preset-catalog';
 import { getAudioGraph } from '@/classic/audio';
 import { createVisualizerStage } from './stage';
 import { t } from '@/i18n';
@@ -30,10 +31,15 @@ export type VisualizerPluginConfig = {
     | 'radial'
     | 'mirror'
     | 'starfield'
-    | 'ribbon';
+    | 'ribbon'
+    | 'pipes'
+    | 'mystify'
+    | 'bubbles';
+  coverBackground: boolean;
   butterchurn: {
     preset: string;
     blendTimeInSeconds: number;
+    cycle: boolean;
   };
   vudio: {
     effect: string;
@@ -86,11 +92,13 @@ export default createPlugin({
   restartNeeded: false,
   config: {
     enabled: true,
-    type: 'butterchurn',
+    type: 'spectrum',
+    coverBackground: true,
     // Config per visualizer
     butterchurn: {
-      preset: 'cope + flexi - colorful marble (ghost mix)',
+      preset: 'Geiss - Spiral Artifact',
       blendTimeInSeconds: 2.7,
+      cycle: false,
     },
     vudio: {
       effect: 'lighting',
@@ -163,9 +171,48 @@ export default createPlugin({
       'mirror',
       'starfield',
       'ribbon',
+      'pipes',
+      'mystify',
+      'bubbles',
     ] as const; // For bundling
 
     return [
+      {
+        label: 'MilkDrop preset',
+        submenu: milkdropPresets.map((preset) => ({
+          label: preset,
+          type: 'radio' as const,
+          checked:
+            (config.butterchurn.preset ===
+            'cope + flexi - colorful marble (ghost mix)'
+              ? 'Geiss - Spiral Artifact'
+              : config.butterchurn.preset) === preset,
+          click() {
+            setConfig({
+              type: 'butterchurn',
+              butterchurn: { ...config.butterchurn, preset },
+            });
+          },
+        })),
+      },
+      {
+        label: 'Cycle MilkDrop presets every 45 seconds',
+        type: 'checkbox',
+        checked: !!config.butterchurn.cycle,
+        click(item) {
+          setConfig({
+            butterchurn: { ...config.butterchurn, cycle: item.checked },
+          });
+        },
+      },
+      {
+        label: 'Album cover background (compatible visualizers)',
+        type: 'checkbox',
+        checked: config.coverBackground !== false,
+        click(item) {
+          setConfig({ coverBackground: item.checked });
+        },
+      },
       {
         label: t('plugins.visualizer.menu.visualizer-type'),
         submenu: visualizerTypes.map((visualizerType) => ({
@@ -209,6 +256,18 @@ export default createPlugin({
 
       this.props.stage ??= createVisualizerStage();
       const visualizerContainer = this.props.stage.container;
+      visualizerContainer.classList.toggle(
+        'cover-background',
+        config.coverBackground !== false &&
+          [
+            'spectrum',
+            'oscilloscope',
+            'radial',
+            'mirror',
+            'starfield',
+            'bubbles',
+          ].includes(config.type),
+      );
       if (!visualizerContainer) {
         return;
       }
@@ -230,7 +289,10 @@ export default createPlugin({
           'Click for fullscreen · Right-click to change visualizer';
         const fullscreen = () => {
           if (document.fullscreenElement) void document.exitFullscreen();
-          else void visualizerContainer.requestFullscreen().catch(() => {});
+          else {
+            this.props.stage?.showVisualizer();
+            void visualizerContainer.requestFullscreen().catch(() => {});
+          }
         };
         canvas.onclick = fullscreen;
         canvas.onkeydown = (e) => {
@@ -248,24 +310,58 @@ export default createPlugin({
         toolbar.id = 'spear-visualizer-tools';
         toolbar.setAttribute('role', 'toolbar');
         toolbar.setAttribute('aria-label', 'Visualizer controls');
-        const makeButton = (label: string, action: () => void) => {
+        const makeButton = (
+          label: string,
+          icon: string,
+          action: () => void,
+        ) => {
           const button = document.createElement('button');
           button.type = 'button';
-          button.textContent = label;
+          button.title = label;
+          button.setAttribute('aria-label', label);
+          const svg = document.createElementNS(
+            'http://www.w3.org/2000/svg',
+            'svg',
+          );
+          svg.setAttribute('viewBox', '0 0 24 24');
+          const path = document.createElementNS(svg.namespaceURI, 'path');
+          path.setAttribute('d', icon);
+          svg.append(path);
+          button.append(svg);
           button.onclick = (event) => {
             event.preventDefault();
             event.stopPropagation();
             action();
           };
           toolbar.append(button);
+          return button;
         };
-        makeButton('Visualizer', () => {
-          void window.ipcRenderer.invoke('classic:visualizer-menu');
-        });
-        makeButton('Equalizer', () => {
-          void window.ipcRenderer.invoke('classic:navigate', 'equalizer');
-        });
-        makeButton('Fullscreen', fullscreen);
+        const toggle = makeButton(
+          'Visualizer / cover or video',
+          'M3 12h3l3-8 4 16 3-8h5',
+          () => {
+            toggle.setAttribute(
+              'aria-pressed',
+              String(this.props.stage?.toggleMedia()),
+            );
+          },
+        );
+        toggle.setAttribute(
+          'aria-pressed',
+          String(!visualizerContainer.classList.contains('media')),
+        );
+        makeButton(
+          'Equalizer',
+          'M5 3v7m0 4v7M12 3v12m0 4v2M19 3v3m0 4v11M2 10h6v4H2zM9 15h6v4H9zM16 6h6v4h-6z',
+          () => {
+            void window.ipcRenderer.invoke('classic:navigate', 'equalizer');
+          },
+        );
+        makeButton(
+          'Fullscreen',
+          'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',
+          fullscreen,
+        );
         visualizerContainer.append(toolbar);
       }
 
@@ -275,7 +371,7 @@ export default createPlugin({
       );
       canvas.height = 180;
       const gainNode = this.props.audioContext.createGain();
-      gainNode.gain.value = 1.25;
+      gainNode.gain.value = 1;
       this.props.audioSource.connect(gainNode);
 
       let visualizerType: {
@@ -295,6 +391,9 @@ export default createPlugin({
           'mirror',
           'starfield',
           'ribbon',
+          'pipes',
+          'mystify',
+          'bubbles',
         ].includes(config.type)
       )
         visualizerType = ClassicVisualizer;
@@ -337,13 +436,7 @@ export default createPlugin({
       const resizeVisualizer = () => {
         const rect = visualizerContainer.getBoundingClientRect();
         const width = Math.max(1, Math.round(rect.width));
-        const height = Math.max(
-          1,
-          Math.round(
-            rect.height -
-              (document.fullscreenElement === visualizerContainer ? 0 : 40),
-          ),
-        );
+        const height = Math.max(1, Math.round(rect.height));
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;

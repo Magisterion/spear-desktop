@@ -124,6 +124,33 @@ test('Spear preferences use local IPC and portable data', async () => {
     const player = app
       .windows()
       .find((w) => w.url().startsWith('https://music.youtube.com'));
+    // Native navigation must route within the existing page, retaining its media state.
+    await player.evaluate(() => {
+      const app = document.querySelector('ytmusic-app');
+      window.originalNavigate = app.navigate;
+      app.navigate = (page) => {
+        window.lastBrowse = page;
+      };
+      window.navigationSentinel = 'same-document';
+    });
+    for (const [action, expected] of [
+      ['home', 'FEmusic_home'],
+      ['library', 'FEmusic_library_landing'],
+    ]) {
+      await player.evaluate(
+        (action) => window.ipcRenderer.invoke('classic:navigate', action),
+        action,
+      );
+      await expect
+        .poll(() => player.evaluate(() => window.lastBrowse))
+        .toBe(expected);
+      expect(await player.evaluate(() => window.navigationSentinel)).toBe(
+        'same-document',
+      );
+    }
+    await player.evaluate(() => {
+      document.querySelector('ytmusic-app').navigate = window.originalNavigate;
+    });
     await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'game'),
     );
@@ -171,11 +198,13 @@ test('Spear preferences use local IPC and portable data', async () => {
       path: path.join(root, 'test-results/spear-equalizer.png'),
     });
     await settings.getByRole('searchbox').fill('Visualizer');
+    const milkdrop = settings.getByLabel('MilkDrop preset', { exact: true });
+    await expect(milkdrop.locator('option')).toHaveCount(107);
     const visualizerType = settings.locator('select').last();
     await expect(visualizerType.locator('option:checked')).toHaveText(
-      'butterchurn',
+      'spectrum',
     );
-    await expect(visualizerType.locator('option')).toHaveCount(10);
+    await expect(visualizerType.locator('option')).toHaveCount(13);
     await visualizerType.selectOption({ label: 'oscilloscope' });
     await expect(visualizerType.locator('option:checked')).toHaveText(
       'oscilloscope',
@@ -264,9 +293,21 @@ test('Spear preferences use local IPC and portable data', async () => {
     expect(boxes['#side-panel'].right).toBeLessThanOrEqual(720);
     expect(boxes['#side-panel'].top).toBeLessThan(300);
     expect(boxes['#spear-visualizer-tools'].top).toBeGreaterThanOrEqual(
+      boxes['#visualizer'].top,
+    );
+    expect(boxes['#spear-visualizer-tools'].bottom).toBeLessThan(
       boxes['#visualizer'].bottom,
     );
     expect(boxes['#guide-wrapper button'].top).toBeGreaterThanOrEqual(40);
+    await layout.evaluate(() => window.stage.toggleMedia());
+    await expect(layout.locator('#visualizer')).not.toBeVisible();
+    await expect(layout.locator('#player-container')).toBeVisible();
+    await layout.evaluate(() => window.stage.toggleMedia());
+    await expect(layout.locator('#visualizer')).toBeVisible();
+    await expect(layout.locator('#player-container')).not.toBeVisible();
+    await layout.screenshot({
+      path: path.join(root, 'test-results/spear-visualizer-layout.png'),
+    });
     await layout.evaluate(() => {
       const player = document.createElement('ytmusic-player');
       player.setAttribute('player-ui-state', 'MINIPLAYER');
@@ -382,7 +423,7 @@ test('Spear preferences use local IPC and portable data', async () => {
     });
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(
-      game.getByText('Play music to bring the arena to life'),
+      game.getByText('Play music to bring the track to life'),
     ).toBeVisible();
     await game
       .getByRole('button', { name: 'Autopilot: off', exact: true })

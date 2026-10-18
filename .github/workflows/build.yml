@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 2714b5c8bf21648b3560d5d52f9d9c74ab382f72
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Upgrade the previous default MilkDrop preset to the colorful palette")
+          test "$(git rev-parse HEAD^)" = daf26ce3290d788c4fd0fb45c9e6451596147ebd
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Repair player navigation and visual surfaces with Pulseflight")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

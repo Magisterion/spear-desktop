@@ -79,29 +79,6 @@ let yt: Innertube;
 let win: BrowserWindow;
 let playingUrl: string;
 
-const isPremium = async () => {
-  // If signed out, it is understood as non-premium
-  const isSignedIn = (await win.webContents.executeJavaScript(
-    '!!yt.config_.LOGGED_IN',
-  )) as boolean;
-
-  if (!isSignedIn) return false;
-
-  // If signed in, check if the upgrade button is present
-  const upgradeBtnIconPathData = (await win.webContents.executeJavaScript(
-    'document.querySelector(\'iron-iconset-svg[name="yt-sys-icons"] #\u0079\u006f\u0075\u0074\u0075\u0062\u0065_music_monochrome\')?.firstChild?.getAttribute("d")?.substring(0, 15)',
-  )) as string | null;
-
-  // Fallback to non-premium if the icon is not found
-  if (!upgradeBtnIconPathData) return false;
-
-  const upgradeButton = `ytmusic-guide-entry-renderer:has(> tp-yt-paper-item > yt-icon path[d^="${upgradeBtnIconPathData}"])`;
-
-  return (await win.webContents.executeJavaScript(
-    `!document.querySelector('${upgradeButton}')`,
-  )) as boolean;
-};
-
 const sendError = (error: Error, source?: string) => {
   win.setProgressBar(-1); // Close progress bar
   setBadge(0); // Close badge
@@ -177,7 +154,7 @@ async function initializeDownloadClient() {
     cache: new UniversalCache(false),
     cookie: await getCookieFromWindow(win),
     generate_session_locally: true,
-    fetch: getNetFetchAsFetch(),
+    fetch: getNetFetchAsFetch(win.webContents.session),
   });
 
   const requestKey = 'O43z0dpjhgX20SCx4KAo';
@@ -205,7 +182,7 @@ async function initializeDownloadClient() {
       });
 
       const bgConfig: BgConfig = {
-        fetch: getNetFetchAsFetch(),
+        fetch: getNetFetchAsFetch(win.webContents.session),
         globalObj: globalThis,
         identifier: visitorData,
         requestKey,
@@ -373,7 +350,13 @@ async function downloadSongUnsafe(
       );
   }
 
-  let info: YTMusic.TrackInfo | YT.VideoInfo = await yt.music.getInfo(id);
+  let info: YTMusic.TrackInfo | YT.VideoInfo = await yt.music
+    .getInfo(id)
+    .catch((error: unknown) => {
+      throw new Error(
+        `Track information could not be loaded. ${error instanceof Error ? error.message : 'Check your connection.'}`,
+      );
+    });
 
   if (!info) {
     throw new Error(
@@ -432,7 +415,7 @@ async function downloadSongUnsafe(
   }
 
   const downloadOptions: Types.FormatOptions = {
-    type: (await isPremium()) ? 'audio' : 'video+audio', // Audio, video or video+audio
+    type: 'audio', // Audio, video or video+audio
     quality: 'best', // Best, bestefficiency, 144p, 240p, 480p, 720p and so on.
     format: 'any', // Media container format
   };
@@ -461,7 +444,13 @@ async function downloadSongUnsafe(
     return;
   }
 
-  const stream = await info.download(downloadOptions);
+  const stream = await info
+    .download(downloadOptions)
+    .catch((error: unknown) => {
+      throw new Error(
+        `Audio download could not start. ${error instanceof Error ? error.message : 'YouTube did not provide a downloadable stream.'}`,
+      );
+    });
 
   console.info(
     t('plugins.downloader.backend.feedback.download-info', {

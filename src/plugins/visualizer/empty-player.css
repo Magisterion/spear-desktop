@@ -1,14 +1,15 @@
 #spear-visualizer-stage {
-  position: relative;
-  display: block;
+  position: relative !important;
+  display: block !important;
   box-sizing: border-box;
-  width: 100%;
-  height: 220px;
-  flex: 0 0 220px;
+  width: 100% !important;
+  height: 180px;
+  flex: 0 0 180px;
   min-width: 0;
   background: #080b16;
   border-radius: 8px;
   overflow: hidden;
+  z-index: 2;
 }
 #spear-visualizer-stage #visualizer {
   position: absolute !important;
@@ -16,27 +17,116 @@
   visibility: visible !important;
   opacity: 1 !important;
   width: 100% !important;
-  height: calc(100% - 40px) !important;
+  height: 100% !important;
   inset: 0 !important;
   transform: none !important;
   object-fit: fill !important;
   cursor: pointer;
 }
+#spear-visualizer-stage .spear-visualizer-cover {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  inset: 0;
+  opacity: 0.38;
+  display: none;
+  pointer-events: none;
+}
+#spear-visualizer-stage.cover-background .spear-visualizer-cover {
+  display: block;
+}
 #spear-visualizer-stage #spear-visualizer-tools {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 5px;
   margin: 0;
-  padding: 4px 8px;
+  padding: 0;
+  z-index: 5;
+  width: auto;
+  height: 28px;
+}
+#spear-visualizer-tools button {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ffffff50;
+  border-radius: 5px;
+  color: #fff;
+  background: #101621cf;
+  cursor: pointer;
+}
+#spear-visualizer-tools svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+#spear-visualizer-tools button[aria-pressed='true'] {
+  border-color: var(--classic-accent, #9ff);
+  color: var(--classic-accent, #9ff);
+}
+#spear-visualizer-stage.media {
+  background: transparent;
+  pointer-events: none;
+}
+#spear-visualizer-stage.media #visualizer,
+#spear-visualizer-stage.media .spear-visualizer-cover {
+  display: none !important;
+}
+#spear-visualizer-stage.media #spear-visualizer-tools {
+  pointer-events: auto;
+}
+.spear-has-visualizer ytmusic-player-page #main-panel {
+  position: relative !important;
+  display: block !important;
+}
+.spear-has-visualizer:not(.spear-show-media)
+  ytmusic-player-page
+  #main-panel
+  > :not(#spear-visualizer-stage) {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  #main-panel
+  > :not(#spear-visualizer-stage) {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 180px !important;
+}
+.spear-show-media
+  ytmusic-player-page
+  :is(#player, ytmusic-player, #player-container) {
+  height: 180px !important;
+  max-height: 180px !important;
 }
 #spear-visualizer-stage.mini {
-  position: fixed;
+  position: fixed !important;
   z-index: 10000;
   right: 20px;
   bottom: 88px;
-  width: min(340px, calc(100vw - 40px));
-  height: 220px;
+  width: min(340px, calc(100vw - 40px)) !important;
+  height: 180px;
   box-shadow: 0 6px 24px #0008;
+}
+#spear-visualizer-stage.mini.media {
+  box-shadow: none;
+}
+.spear-has-visualizer:not(.spear-show-media)
+  ytmusic-player[player-ui-state='MINIPLAYER'] {
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 #spear-visualizer-stage:fullscreen {
   width: 100vw !important;
@@ -44,19 +134,21 @@
   max-height: none !important;
   border-radius: 0;
 }
-#spear-visualizer-stage:fullscreen #visualizer {
-  height: 100% !important;
-}
-#spear-visualizer-stage:fullscreen #spear-visualizer-tools {
-  display: none;
-}
-.spear-has-visualizer ytmusic-player[player-ui-state='MINIPLAYER'] {
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
-.spear-has-visualizer #main-panel #player-container {
-  display: none !important;
-}
-#visualizer:focus-visible {
+#visualizer:focus-visible,
+#spear-visualizer-tools button:focus-visible {
   outline: 2px solid #99c8ff;
+}
+
+.spear-show-media ytmusic-player[player-ui-state='MINIPLAYER'] {
+  position: fixed !important;
+  right: 20px !important;
+  bottom: 88px !important;
+  width: min(340px, calc(100vw - 40px)) !important;
+  height: 180px !important;
+  transform: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.spear-has-visualizer ytmusic-player-page #main-panel {
+  overflow: hidden !important;
 }

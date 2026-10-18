@@ -1,3 +1,4 @@
+import { milkdropPresets } from '../preset-catalog';
 import Butterchurn from 'butterchurn';
 import ButterchurnPresets from 'butterchurn-presets';
 
@@ -23,11 +24,35 @@ class ButterchurnVisualizer extends Visualizer {
     const presets = (ButterchurnPresets.default ??
       ButterchurnPresets) as Record<string, unknown>;
     const preset =
-      presets[config.butterchurn.preset] ??
-      presets['cope + flexi - colorful marble (ghost mix)'] ??
+      presets[
+        config.butterchurn.preset ===
+        'cope + flexi - colorful marble (ghost mix)'
+          ? 'Geiss - Spiral Artifact'
+          : config.butterchurn.preset
+      ] ??
+      presets['Geiss - Spiral Artifact'] ??
       Object.values(presets)[0];
+    let nextPreset = performance.now() + 45000;
+    let presetIndex = Math.max(
+      0,
+      milkdropPresets.indexOf(
+        config.butterchurn.preset as (typeof milkdropPresets)[number],
+      ),
+    );
     const renderVisualizer = () => {
       if (this.destroyed) return;
+      if (
+        config.butterchurn.cycle &&
+        performance.now() >= nextPreset &&
+        !document.querySelector('video')?.paused
+      ) {
+        presetIndex = (presetIndex + 1) % milkdropPresets.length;
+        this.visualizer.loadPreset(
+          presets[milkdropPresets[presetIndex]],
+          config.butterchurn.blendTimeInSeconds,
+        );
+        nextPreset = performance.now() + 45000;
+      }
       this.visualizer.render();
       this.animFrameHandle = requestAnimationFrame(renderVisualizer);
     };

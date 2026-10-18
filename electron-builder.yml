@@ -5,6 +5,7 @@ files:
   - dist
   - assets
   - license
+  - THIRD_PARTY_VISUALIZERS.txt
   - '!node_modules'
   - 'node_modules/custom-electron-prompt/**'
   - 'node_modules/@ghostery/adblocker-electron-preload/**'

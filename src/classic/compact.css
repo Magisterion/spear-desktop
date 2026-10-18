@@ -35,9 +35,9 @@ ytmusic-app tp-yt-app-drawer {
     width: 100% !important;
     max-width: 100% !important;
     min-height: 0 !important;
-    height: 220px !important;
-    max-height: 220px !important;
-    flex: 0 0 220px !important;
+    height: 180px !important;
+    max-height: 180px !important;
+    flex: 0 0 180px !important;
   }
   ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
     :is(#player, #player-container):not(:fullscreen) {
@@ -100,31 +100,6 @@ ytmusic-player-bar {
 yt-formatted-string.title {
   color: var(--player-accent) !important;
 }
-#spear-visualizer-tools {
-  box-sizing: border-box;
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 4px 0;
-  position: relative;
-  z-index: 5;
-}
-#spear-visualizer-tools button {
-  border: 1px solid var(--classic-accent, #a9bdd4);
-  border-radius: 4px;
-  min-height: 30px;
-  padding: 4px 12px;
-  background: var(--classic-bottom, #17191d);
-  color: #fff;
-  cursor: pointer;
-}
-#spear-visualizer-tools button:focus-visible {
-  outline: 2px solid #b8d3fb;
-}
-
 #ytmd-title-bar-main-panel {
   font-family: var(--shell-font);
 }
@@ -142,4 +117,48 @@ ytmusic-app
 }
 ytmusic-player-queue-item .song-title {
   color: var(--player-accent);
+}
+
+/* Modern Music layouts set these tokens again on individual surfaces. */
+ytmusic-app,
+ytmusic-app-layout,
+ytmusic-browse-response,
+ytmusic-player-page,
+ytmusic-nav-bar,
+ytmusic-guide-renderer,
+ytmusic-player-queue {
+  --ytmusic-background: var(--player-surface) !important;
+  --ytmusic-color-black1: var(--player-surface) !important;
+  --ytmusic-color-black2: var(--player-bottom) !important;
+  --ytmusic-color-black3: var(--player-top) !important;
+  --ytmusic-color-white1: var(--player-text) !important;
+  --ytmusic-color-white2: var(--player-muted) !important;
+  --yt-primary-text-color: var(--player-text) !important;
+  --yt-secondary-text-color: var(--player-muted) !important;
+  --yt-spec-base-background: var(--player-surface) !important;
+  --yt-spec-text-primary: var(--player-text) !important;
+  --yt-spec-text-secondary: var(--player-muted) !important;
+  --yt-spec-brand-background-primary: var(--player-bottom) !important;
+  color: var(--player-text) !important;
+  font-family: var(--player-font) !important;
+}
+ytmusic-app-layout,
+#browse-page,
+#player-page,
+#nav-bar-background,
+#mini-guide-background,
+#guide-wrapper,
+ytmusic-player-queue {
+  background: var(--player-surface) !important;
+}
+yt-formatted-string,
+ytmusic-app a,
+ytmusic-tab-renderer,
+tp-yt-paper-tab {
+  color: var(--player-text) !important;
+}
+ytmusic-chip-cloud-chip-renderer,
+ytmusic-item-section-renderer #header {
+  background: var(--player-top) !important;
+  border-radius: var(--player-radius) !important;
 }

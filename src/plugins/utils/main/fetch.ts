@@ -1,22 +1,25 @@
-import { net } from 'electron';
+import { net, type Session } from 'electron';
 
-export const getNetFetchAsFetch = () =>
+/** Keep downloads on the player's network session (including its proxy). */
+export const getNetFetchAsFetch = (session?: Session) =>
   (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url =
-      typeof input === 'string'
-        ? new URL(input)
-        : input instanceof URL
-          ? input
-          : new URL(input.url);
-
-    if (init?.body && !init.method) {
-      init.method = 'POST';
-    }
-
+    const options = { ...init };
+    if (options.body && !options.method) options.method = 'POST';
     const request = new Request(
-      url,
-      input instanceof Request ? input : undefined,
+      input instanceof URL ? input.href : input,
+      options,
     );
-
-    return net.fetch(request, init);
+    try {
+      return await (session ? session.fetch(request) : net.fetch(request));
+    } catch (error) {
+      // Do not print signed media URLs, request headers or account cookies.
+      const host = new URL(request.url).hostname;
+      const code =
+        error instanceof Error
+          ? error.message.match(/net::ERR_[A-Z_]+/)?.[0]
+          : undefined;
+      throw new Error(
+        `Network request to ${host} failed${code ? ` (${code})` : ''}. Check Spear's proxy and connection settings. No file was saved.`,
+      );
+    }
   }) as typeof fetch;

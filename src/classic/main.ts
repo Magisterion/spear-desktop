@@ -11,6 +11,7 @@ import { getSongControls } from '@/providers/song-controls';
 import { registerCallback, type SongInfo } from '@/providers/song-info';
 
 import { presetConfigs, type Preset } from '@/plugins/equalizer/presets';
+import { milkdropPresets } from '@/plugins/visualizer/preset-catalog';
 import { skins } from './skins';
 import compactCss from './compact.css?inline';
 import localPreload from './preload.cjs?asset';
@@ -99,10 +100,15 @@ export function showTrayPopup(win: BrowserWindow) {
   }
   const cursor = screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint(cursor).workArea;
-  popup.setPosition(
-    Math.max(area.x, Math.min(cursor.x - 240, area.x + area.width - 504)),
-    Math.max(area.y, Math.min(cursor.y - 344, area.y + area.height - 344)),
-  );
+  // Use absolute DIP bounds on every opening. Never reuse DPI-adjusted sizes.
+  popup.setBounds({
+    x: Math.max(area.x, Math.min(cursor.x - 240, area.x + area.width - 504)),
+    y: Math.max(area.y, Math.min(cursor.y - 344, area.y + area.height - 344)),
+    width: 480,
+    height: 320,
+  });
+  popup.webContents.setZoomFactor(1);
+  popup.webContents.send('classic:refresh');
   popup.show();
   popup.focus();
 }
@@ -259,7 +265,25 @@ async function snapshot() {
 }
 
 export function migrateClassicPreferences() {
-  if (config.get('options.classicExperienceVersion') >= 1) return;
+  const version = config.get('options.classicExperienceVersion');
+  if (version >= 2) return;
+  if (version >= 1) {
+    const current = config.get('plugins.visualizer') as {
+      type?: string;
+      butterchurn?: { preset?: string };
+    };
+    if (
+      current?.type === 'butterchurn' &&
+      current.butterchurn?.preset ===
+        'cope + flexi - colorful marble (ghost mix)'
+    )
+      config.setPartial('plugins.visualizer', {
+        type: 'spectrum',
+        coverBackground: true,
+      });
+    config.set('options.classicExperienceVersion', 2);
+    return;
+  }
   config.set(
     'options.classicSkin',
     config.get('options.classicPlayerTheme') ?? 'graphite',
@@ -270,7 +294,8 @@ export function migrateClassicPreferences() {
     | undefined;
   if (!visualizer?.type || visualizer.type === 'spectrum')
     config.setPartial('plugins.visualizer', {
-      type: 'butterchurn',
+      type: 'spectrum',
+      coverBackground: true,
       butterchurn: { preset: 'cope + flexi - colorful marble (ghost mix)' },
     });
   if (
@@ -281,7 +306,7 @@ export function migrateClassicPreferences() {
     config.setPartial('plugins.visualizer', {
       butterchurn: { preset: 'cope + flexi - colorful marble (ghost mix)' },
     });
-  config.set('options.classicExperienceVersion', 1);
+  config.set('options.classicExperienceVersion', 2);
 }
 
 export function setupClassic(win: BrowserWindow) {
@@ -374,6 +399,9 @@ export function setupClassic(win: BrowserWindow) {
       mirror: 'Mirrored spectrum',
       starfield: 'Starfield',
       ribbon: 'Neon ribbon',
+      pipes: 'Prismatic pipes',
+      mystify: 'Mystify trails',
+      bubbles: 'Glass bubbles',
     };
     Menu.buildFromTemplate([
       ...Object.entries(names).map(([type, label]) => ({
@@ -385,6 +413,24 @@ export function setupClassic(win: BrowserWindow) {
         click: () => config.setPartial('plugins.visualizer', { type }),
       })),
       { type: 'separator' },
+      {
+        label: 'MilkDrop presets',
+        submenu: milkdropPresets.map((preset) => ({
+          label: preset,
+          type: 'radio' as const,
+          checked:
+            (
+              config.get('plugins.visualizer') as {
+                butterchurn?: { preset?: string };
+              }
+            )?.butterchurn?.preset === preset,
+          click: () =>
+            config.setPartial('plugins.visualizer', {
+              type: 'butterchurn',
+              butterchurn: { preset },
+            }),
+        })),
+      },
       { label: 'Equalizer…', click: () => openSettings(win, 'Equalizer') },
     ]).popup({ window: win });
   });
@@ -393,8 +439,8 @@ export function setupClassic(win: BrowserWindow) {
     const history = win.webContents.navigationHistory;
     if (action === 'back' && history.canGoBack()) history.goBack();
     if (action === 'forward' && history.canGoForward()) history.goForward();
-    if (action === 'home') win.loadURL('https://music.youtube.com/');
-    if (action === 'library') win.loadURL('https://music.youtube.com/library');
+    if (action === 'home' || action === 'library')
+      win.webContents.send('classic:browse', action);
     if (action === 'game' || action === 'visualizer') openEntertainment(action);
     if (action === 'game-exit' && gamePreviousFullscreen !== null) {
       win.setFullScreen(gamePreviousFullscreen);
@@ -413,18 +459,30 @@ export function setupClassic(win: BrowserWindow) {
       const fromSettings = settings && event.sender === settings.webContents;
       const fromTray = popup && event.sender === popup.webContents;
       if (!fromSettings && !fromTray) throw new Error('Untrusted window');
-      if (action === 'song')
+      if (action === 'song') {
+        // Read the actual media clock; provider time events depend on optional plugins.
+        const clock = (await win.webContents
+          .executeJavaScript(`(() => {
+          const v = document.querySelector('video');
+          return v ? { elapsed: v.currentTime, duration: Number.isFinite(v.duration) ? v.duration : 0, paused: v.paused } : null;
+        })()`)
+          .catch(() => null)) as {
+          elapsed: number;
+          duration: number;
+          paused: boolean;
+        } | null;
         return {
           title: song.title ?? 'Nothing playing',
           artist: song.artist ?? 'Start your music',
           artwork,
-          elapsed: song.elapsedSeconds ?? 0,
-          duration: song.songDuration ?? 0,
-          paused: song.isPaused ?? true,
+          elapsed: clock?.elapsed ?? song.elapsedSeconds ?? 0,
+          duration: clock?.duration || song.songDuration || 0,
+          paused: clock?.paused ?? song.isPaused ?? true,
           animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
           bass: Date.now() - audioLevelAt < 500 ? audioLevel : 0,
           palette: skins[config.get('options.classicSkin')] ?? skins.graphite,
         };
+      }
       if (action === 'game' || action === 'visualizer')
         return openEntertainment(action);
       if (

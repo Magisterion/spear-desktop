@@ -1,5 +1,5 @@
 import { audioMotion } from './audio';
-// Original geometric artwork and mechanics. No borrowed game assets or levels.
+// Original procedural track, vehicles and artwork. No borrowed game assets.
 let closeGame: (() => void) | null = null;
 function openGame() {
   if (closeGame) return;
@@ -10,24 +10,23 @@ function openGame() {
     position: 'fixed',
     inset: '0',
     zIndex: '2147483646',
-    background: '#07101c',
+    background: '#050b19',
   });
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = `*{box-sizing:border-box}:host{color:#effcff;font:14px system-ui}section{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#07101c}header,footer{display:flex;align-items:center;gap:16px;padding:14px 24px;flex-wrap:wrap;background:#0c1828}strong{letter-spacing:3px;color:#75f6d4}button{padding:9px 15px;background:#203449;color:#effcff;border:1px solid #4e7188;border-radius:6px;font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #75f6d4}#status{flex:1;color:#b4cbd8}canvas{display:block;width:100%;height:100%;min-height:0;touch-action:none}footer{font-size:12px;color:#b4cbd8}progress{width:100px;height:8px;accent-color:#75f6d4}#score{margin-left:auto}`;
-  root.append(style);
+  style.textContent = `*{box-sizing:border-box}:host{font:14px system-ui;color:#effcff}section{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}header,footer{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:12px 24px;background:#0b1426}strong{letter-spacing:3px;color:#79f4ea}#status{flex:1;color:#a9bfd4}button{background:#192c44;color:#fff;border:1px solid #51708e;border-radius:6px;padding:8px 12px;cursor:pointer}canvas{width:100%;height:100%;display:block;min-height:0;touch-action:none}footer{font-size:12px;color:#a9bfd4}#score{margin-left:auto}progress{width:80px;height:8px;accent-color:#79f4ea}`;
   const section = document.createElement('section'),
     header = document.createElement('header'),
     footer = document.createElement('footer');
   const title = document.createElement('strong');
-  title.textContent = 'PULSEFIELD';
+  title.textContent = 'PULSEFLIGHT';
   const status = document.createElement('span');
   status.id = 'status';
   status.setAttribute('role', 'status');
-  const button = (label: string, callback: () => void) => {
+  const button = (label: string, fn: () => void) => {
     const b = document.createElement('button');
     b.textContent = label;
-    b.onclick = callback;
+    b.onclick = fn;
     return b;
   };
   let autopilot = false;
@@ -45,354 +44,275 @@ function openGame() {
   canvas.tabIndex = 0;
   canvas.setAttribute(
     'aria-label',
-    'Pulsefield. Move with WASD, arrows or mouse. Space to dash. Escape to return.',
+    'Pulseflight. Steer with arrows, A/D or mouse. Space to boost. Escape to return.',
   );
   const hint = document.createElement('span');
-  hint.textContent = 'Move: WASD / arrows / mouse · Dash: Space / click';
+  hint.textContent =
+    'Steer: A/D / arrows / mouse · Boost: Space · Collect cyan · Avoid coral';
   const meter = document.createElement('progress');
   meter.max = 1;
-  meter.value = 0;
   meter.setAttribute('aria-label', 'Music pulse');
   const score = document.createElement('span');
   score.id = 'score';
   footer.append(hint, meter, score);
   section.append(header, canvas, footer);
-  root.append(section);
+  root.append(style, section);
   document.body.append(host);
   canvas.focus();
   const ctx = canvas.getContext('2d')!;
   let w = 960,
     h = 540,
-    x = 480,
-    y = 270,
-    targetX = x,
-    targetY = y;
-  let last = performance.now(),
     clock = 0,
-    survived = 0,
-    lastBeat = audioMotion.beat,
-    pulse = 0,
-    spawn = 0.5;
-  let dash = 0,
-    cooldown = 0,
-    shield = 2,
+    distance = 0,
+    lane = 0,
+    steer = 0,
+    elapsed = 0,
+    points = 0,
+    combo = 0,
     hits = 0,
-    seed = 1,
+    boost = 0,
+    cooldown = 0,
+    flash = 0,
+    seed = 123,
     track = '',
-    titleTimer = 0,
-    raf = 0;
-  let usePointer = false;
-  const keys = new Set<string>();
-  type Particle = {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    age: number;
-    size: number;
-  };
-  type Hazard = {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    r: number;
-    age: number;
-    kind: 'orb' | 'ring' | 'beam';
-    angle: number;
-  };
-  let hazards: Hazard[] = [],
-    particles: Particle[] = [];
+    trackTimer = 0,
+    raf = 0,
+    last = performance.now(),
+    lastBeat = audioMotion.beat,
+    spawnTimer = 0;
+  let objects: { z: number; lane: number; danger: boolean }[] = [];
   const random = () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return seed / 4294967296;
+    seed = (Math.imul(seed, 1664525) + 1013904223) | 0;
+    return (seed >>> 0) / 4294967296;
   };
-  const burst = (bx: number, by: number, count = 12) => {
-    for (let i = 0; i < count; i++) {
-      const a = random() * Math.PI * 2;
-      particles.push({
-        x: bx,
-        y: by,
-        vx: Math.cos(a) * (40 + random() * 160),
-        vy: Math.sin(a) * (40 + random() * 160),
-        age: 0,
-        size: 2 + random() * 3,
-      });
-    }
-  };
-  const resize = () => {
+  const keys = new Set<string>();
+  const resize = new ResizeObserver(() => {
     const rect = canvas.getBoundingClientRect();
-    w = 960;
-    h = Math.max(300, Math.round((w * rect.height) / Math.max(1, rect.width)));
+    h = Math.max(250, (960 * rect.height) / Math.max(1, rect.width));
     canvas.width = w;
     canvas.height = h;
-    x = Math.min(x, w - 20);
-    y = Math.min(y, h - 20);
+  });
+  resize.observe(canvas);
+  const move = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    steer = Math.max(
+      -1,
+      Math.min(1, ((event.clientX - rect.left) / rect.width) * 3 - 1.5),
+    );
   };
-  const observer = new ResizeObserver(resize);
-  observer.observe(canvas);
-  resize();
-  const doDash = () => {
-    if (cooldown <= 0) {
-      dash = 0.22;
-      cooldown = 1.2;
-      burst(x, y, 18);
-    }
-  };
-  const down = (event: KeyboardEvent) => {
-    const key = event.key.toLowerCase();
-    if (
-      ![
-        'escape',
-        ' ',
-        'w',
-        'a',
-        's',
-        'd',
-        'arrowup',
-        'arrowdown',
-        'arrowleft',
-        'arrowright',
-      ].includes(key)
-    )
+  canvas.addEventListener('pointermove', move);
+  const keydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeGame?.();
       return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (key === 'escape') closeGame?.();
-    else if (key === ' ') {
-      if (!event.repeat) doDash();
-    } else {
-      keys.add(key);
-      usePointer = false;
+    }
+    if (['ArrowLeft', 'ArrowRight', 'a', 'd', 'A', 'D', ' '].includes(e.key)) {
+      e.preventDefault();
+      keys.add(e.key.toLowerCase());
+      if (e.key === ' ' && !cooldown) {
+        boost = 1.2;
+        cooldown = 4;
+      }
     }
   };
-  const up = (event: KeyboardEvent) => keys.delete(event.key.toLowerCase());
-  const blur = () => keys.clear();
-  window.addEventListener('keydown', down, true);
-  window.addEventListener('keyup', up, true);
-  window.addEventListener('blur', blur);
-  canvas.onpointermove = (e) => {
-    const r = canvas.getBoundingClientRect();
-    targetX = ((e.clientX - r.left) / r.width) * w;
-    targetY = ((e.clientY - r.top) / r.height) * h;
-    usePointer = true;
-  };
-  canvas.onpointerdown = doDash;
+  const keyup = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
+  document.addEventListener('keydown', keydown, true);
+  document.addEventListener('keyup', keyup, true);
   closeGame = () => {
     cancelAnimationFrame(raf);
-    observer.disconnect();
-    window.removeEventListener('keydown', down, true);
-    window.removeEventListener('keyup', up, true);
-    window.removeEventListener('blur', blur);
+    resize.disconnect();
+    document.removeEventListener('keydown', keydown, true);
+    document.removeEventListener('keyup', keyup, true);
     host.remove();
     closeGame = null;
     previousFocus?.focus();
     void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
   };
-  function spawnWave(beat: boolean) {
-    if (hazards.length > 80) return;
-    if (beat) {
-      pulse = 1;
-      const bx = random() * w,
-        by = random() * h;
-      hazards.push({
-        x: bx,
-        y: by,
-        vx: 0,
-        vy: 0,
-        r: 4,
-        age: -0.55,
-        kind: 'ring',
-        angle: random() * Math.PI * 2,
-      });
-      burst(bx, by, 16);
-    } else {
-      const left = random() < 0.5,
-        bx = left ? -15 : w + 15,
-        by = random() * h;
-      const angle = Math.atan2(y - by, x - bx);
-      hazards.push({
-        x: bx,
-        y: by,
-        vx: Math.cos(angle) * (110 + audioMotion.energy * 130),
-        vy: Math.sin(angle) * (110 + audioMotion.energy * 130),
-        r: 8 + random() * 7,
-        age: -0.5,
-        kind: 'orb',
-        angle: 0,
-      });
-      if (random() < 0.22)
-        hazards.push({
-          x: 40 + random() * (w - 80),
-          y: 0,
-          vx: 0,
-          vy: 0,
-          r: 14,
-          age: -1.15,
-          kind: 'beam',
-          angle: 0,
-        });
-    }
-  }
+  const project = (z: number, offset = 0) => {
+    const p = 1 / (1 + z * 0.055),
+      ahead = distance + z;
+    const bend = Math.sin(ahead * 0.008) * 0.7 + Math.sin(ahead * 0.021) * 0.24;
+    const near =
+      Math.sin(distance * 0.008) * 0.7 + Math.sin(distance * 0.021) * 0.24;
+    const hill = Math.sin(ahead * 0.014) * 0.13;
+    return {
+      x: w * 0.5 + (bend - near) * w * 0.48 * (1 - p) + offset * w * 0.31 * p,
+      y: h * 0.24 + h * 0.68 * p + hill * h * (1 - p),
+      half: w * 0.37 * p,
+      p,
+    };
+  };
   function frame(now: number) {
     const dt = Math.min(0.04, (now - last) / 1000);
     last = now;
-    if (document.hidden) {
-      raf = requestAnimationFrame(frame);
-      return;
-    }
     clock += dt;
-    titleTimer -= dt;
     const active = audioMotion.active,
       energy = active ? audioMotion.energy : 0,
       bass = active ? audioMotion.bass : 0;
-    if (titleTimer <= 0) {
-      titleTimer = 0.5;
+    elapsed += active ? dt : 0;
+    boost = Math.max(0, boost - dt);
+    cooldown = Math.max(0, cooldown - dt);
+    flash = Math.max(0, flash - dt);
+    const speed = active ? 28 + energy * 58 + (boost ? 45 : 0) : 8;
+    distance += dt * speed;
+    if (keys.has('arrowleft') || keys.has('a'))
+      steer = Math.max(-1, steer - dt * 4);
+    if (keys.has('arrowright') || keys.has('d'))
+      steer = Math.min(1, steer + dt * 4);
+    if (autopilot) {
+      const next = objects
+        .filter((o) => !o.danger && o.z < 100)
+        .sort((a, b) => a.z - b.z)[0];
+      steer = next?.lane ?? Math.sin(clock * 0.5);
+    }
+    lane += (steer - lane) * Math.min(1, dt * 9);
+    trackTimer -= dt;
+    if (trackTimer <= 0) {
+      trackTimer = 1;
       const name =
         document
           .querySelector('ytmusic-player-bar .title')
-          ?.textContent?.trim() || '';
+          ?.textContent?.trim() ?? '';
       if (name !== track) {
         track = name;
-        seed = 2166136261;
-        for (const c of track)
-          seed = Math.imul(seed ^ c.charCodeAt(0), 16777619) >>> 0;
-        hazards = [];
-        survived = 0;
-        shield = 2;
+        seed = [...name].reduce(
+          (a, c) => Math.imul(a, 31) + c.charCodeAt(0),
+          123,
+        );
+        objects = [];
+        combo = 0;
+        points = 0;
       }
       status.textContent = active
-        ? name || 'Follow the music. Dodge the shapes.'
-        : 'Play music to bring the arena to life';
+        ? track || 'Ride the music'
+        : 'Play music to bring the track to life';
     }
-    if (active) {
-      survived += dt;
-      spawn -= dt;
-      if (audioMotion.beat !== lastBeat) {
-        lastBeat = audioMotion.beat;
-        spawnWave(true);
-      }
-      if (spawn <= 0) {
-        spawnWave(false);
-        spawn = 0.85 - energy * 0.45;
-      }
+    spawnTimer -= dt;
+    if (active && (audioMotion.beat !== lastBeat || spawnTimer <= 0)) {
+      lastBeat = audioMotion.beat;
+      spawnTimer = Math.max(0.35, 1.1 - energy * 0.7);
+      objects.push({
+        z: 190,
+        lane: Math.floor(random() * 3) - 1,
+        danger: random() < 0.25,
+      });
     }
-    pulse = Math.max(0, pulse - dt * 2.8);
-    dash = Math.max(0, dash - dt);
-    cooldown = Math.max(0, cooldown - dt);
-    shield = Math.max(0, shield - dt);
-    let dx =
-      Number(keys.has('d') || keys.has('arrowright')) -
-      Number(keys.has('a') || keys.has('arrowleft'));
-    let dy =
-      Number(keys.has('s') || keys.has('arrowdown')) -
-      Number(keys.has('w') || keys.has('arrowup'));
-    if (autopilot) {
-      targetX = w * (0.5 + 0.32 * Math.sin(clock * 0.7));
-      targetY = h * (0.5 + 0.3 * Math.cos(clock * 0.9));
-    }
-    if (autopilot || usePointer) {
-      dx = targetX - x;
-      dy = targetY - y;
-    }
-    const length = Math.hypot(dx, dy),
-      speed = dash ? 880 : 280;
-    if (length > 0) {
-      const step = Math.min(length, speed * dt);
-      if (autopilot || usePointer) {
-        x += (dx / length) * step;
-        y += (dy / length) * step;
-      } else {
-        x += (dx / length) * speed * dt;
-        y += (dy / length) * speed * dt;
-      }
-    }
-    x = Math.max(12, Math.min(w - 12, x));
-    y = Math.max(12, Math.min(h - 12, y));
-    ctx.fillStyle = `rgb(${7 + pulse * 8},${16 + bass * 12},${28 + bass * 22})`;
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#050915');
+    sky.addColorStop(0.5, `hsl(${230 + bass * 30} 55% 17%)`);
+    sky.addColorStop(1, '#07192b');
+    ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = `rgba(70,150,180,${0.08 + energy * 0.1})`;
-    ctx.lineWidth = 1;
-    for (let gx = -40 + ((clock * (10 + energy * 25)) % 40); gx < w; gx += 40) {
+    // Distant stars and orbit rings keep the horizon readable during bends.
+    for (let i = 0; i < 90; i++) {
+      const x = (i * 127.7 + clock * 2) % w,
+        y = (i * 43.91) % (h * 0.48);
+      ctx.fillStyle = `rgba(180,220,255,${0.2 + (i % 5) * 0.12})`;
+      ctx.fillRect(x, y, 1 + (i % 3 === 0 ? 1 : 0), 1);
+    }
+    ctx.strokeStyle = '#745b9d70';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
       ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      ctx.lineTo(gx, h);
+      ctx.ellipse(
+        w * 0.5,
+        h * 0.3,
+        70 + i * 22 + bass * 12,
+        65 + i * 18,
+        -0.3,
+        0,
+        Math.PI * 2,
+      );
       ctx.stroke();
     }
-    for (let gy = 0; gy < h; gy += 40) {
+    // Draw track from horizon towards the ship. The same projection is used for objects.
+    for (let z = 240; z > 0; z -= 3) {
+      const a = project(z),
+        b = project(Math.max(0, z - 3));
+      ctx.fillStyle =
+        Math.floor((distance + z) / 12) % 2 ? '#12243bd9' : '#182b42e8';
       ctx.beginPath();
-      ctx.moveTo(0, gy);
-      ctx.lineTo(w, gy);
-      ctx.stroke();
-    }
-    // A wide edge spectrum makes quiet/loud changes immediately readable.
-    for (let i = 0; i < 32; i++) {
-      const size =
-        (10 + bass * 70) * (0.3 + Math.abs(Math.sin(i * 0.4 + clock)) * 0.7);
-      ctx.fillStyle = `hsla(${165 + i * 3},80%,65%,${0.12 + energy * 0.3})`;
-      ctx.fillRect((i * w) / 32, h - size, w / 32 - 4, size);
-    }
-    let collision = false;
-    for (const o of hazards) {
-      o.age += dt * (active ? 1 : 0.2);
-      const warning = o.age < 0;
-      ctx.strokeStyle = warning ? '#ffd99677' : '#ffac62';
-      ctx.fillStyle = warning ? '#ffd99633' : '#ffac62';
-      ctx.lineWidth = warning ? 2 : 5;
-      if (o.kind === 'orb') {
-        if (!warning && active) {
-          o.x += o.vx * dt;
-          o.y += o.vy * dt;
-        }
+      ctx.moveTo(a.x - a.half, a.y);
+      ctx.lineTo(a.x + a.half, a.y);
+      ctx.lineTo(b.x + b.half, b.y);
+      ctx.lineTo(b.x - b.half, b.y);
+      ctx.closePath();
+      ctx.fill();
+      for (const edge of [-1, -1 / 3, 1 / 3, 1]) {
+        ctx.strokeStyle =
+          Math.abs(edge) === 1
+            ? `hsl(${175 + energy * 35} 90% ${55 + bass * 20}%)`
+            : '#7b8cb954';
+        ctx.lineWidth = Math.abs(edge) === 1 ? 2 + b.p * 3 : 1;
         ctx.beginPath();
-        ctx.arc(o.x, o.y, o.r * (1 + bass * 0.2), 0, Math.PI * 2);
-        warning ? ctx.stroke() : ctx.fill();
-        collision ||= !warning && Math.hypot(o.x - x, o.y - y) < o.r + 9;
-      } else if (o.kind === 'ring') {
-        if (!warning && active) o.r += dt * (85 + energy * 75);
-        ctx.beginPath();
-        ctx.arc(o.x, o.y, o.r, o.angle + 0.55, o.angle + Math.PI * 2 - 0.55);
+        ctx.moveTo(a.x + a.half * edge, a.y);
+        ctx.lineTo(b.x + b.half * edge, b.y);
         ctx.stroke();
-        let angle = Math.atan2(y - o.y, x - o.x) - o.angle;
-        angle = Math.atan2(Math.sin(angle), Math.cos(angle));
-        collision ||=
-          !warning &&
-          Math.abs(angle) > 0.55 &&
-          Math.abs(Math.hypot(x - o.x, y - o.y) - o.r) < 11;
-      } else {
-        ctx.fillRect(o.x - (warning ? 1 : o.r), 0, warning ? 2 : o.r * 2, h);
-        collision ||= !warning && Math.abs(x - o.x) < o.r + 8;
       }
     }
-    hazards = hazards.filter((o) =>
-      o.kind === 'beam'
-        ? o.age < 0.22
-        : o.age < 8 && o.x > -80 && o.x < w + 80 && o.y > -80 && o.y < h + 80,
-    );
-    if (collision && !shield && !dash && active) {
-      hits++;
-      shield = 1.4;
-      burst(x, y, 26);
+    for (const object of [...objects].sort((a, b) => b.z - a.z)) {
+      object.z -= dt * speed;
+      const p = project(Math.max(0, object.z), object.lane * 0.8),
+        size = 10 + 32 * p.p;
+      ctx.save();
+      ctx.translate(p.x, p.y - size * 0.5);
+      ctx.fillStyle = object.danger ? '#ff737f' : '#70f6e4';
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = object.danger ? 10 : 18;
+      ctx.beginPath();
+      if (object.danger) {
+        ctx.moveTo(0, -size);
+        ctx.lineTo(size * 0.7, size * 0.2);
+        ctx.lineTo(-size * 0.7, size * 0.2);
+      } else {
+        ctx.moveTo(0, -size * 0.6);
+        ctx.lineTo(size * 0.6, 0);
+        ctx.lineTo(0, size * 0.6);
+        ctx.lineTo(-size * 0.6, 0);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      if (object.z <= 0 && Math.abs(lane - object.lane) < 0.45) {
+        if (object.danger && !boost) {
+          hits++;
+          combo = 0;
+          flash = 0.3;
+        } else if (!object.danger) {
+          combo++;
+          points += 10 + Math.min(combo, 50);
+        }
+      }
     }
-    for (const p of particles) {
-      p.age += dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      ctx.fillStyle = `rgba(117,246,212,${Math.max(0, 1 - p.age)})`;
-      ctx.fillRect(p.x, p.y, p.size, p.size);
-    }
-    particles = particles.filter((p) => p.age < 1);
+    objects = objects.filter((o) => o.z > 0);
+    const ship = project(0, lane * 0.8);
     ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.PI / 4 + clock * 0.25);
-    ctx.shadowColor = '#75f6d4';
-    ctx.shadowBlur = dash ? 28 : 12;
-    ctx.fillStyle =
-      shield && Math.floor(clock * 12) % 2 ? '#d7fff2' : '#75f6d4';
-    ctx.fillRect(-9, -9, 18, 18);
+    ctx.translate(ship.x, ship.y - 12);
+    ctx.rotate((steer - lane) * 0.35);
+    ctx.shadowColor = '#65fff2';
+    ctx.shadowBlur = 20 + bass * 15;
+    ctx.fillStyle = '#e0ffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -24);
+    ctx.lineTo(20, 15);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-20, 15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = boost ? '#ffbe70' : '#61dce7';
+    ctx.beginPath();
+    ctx.moveTo(-7, 14);
+    ctx.lineTo(0, 30 + energy * 30 + (boost ? 30 : 0));
+    ctx.lineTo(7, 14);
+    ctx.fill();
     ctx.restore();
+    if (flash) {
+      ctx.fillStyle = `rgba(255,70,100,${flash * 0.4})`;
+      ctx.fillRect(0, 0, w, h);
+    }
     meter.value = Math.max(bass, energy);
-    score.textContent = `${Math.floor(survived)} s · Hits ${hits} · Dash ${cooldown ? 'charging' : 'ready'}`;
+    score.textContent = `${Math.floor(elapsed)} s · ${points} pts · ×${combo} · Hits ${hits} · Boost ${cooldown ? 'charging' : 'ready'}`;
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);

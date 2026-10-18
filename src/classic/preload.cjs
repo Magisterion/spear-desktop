@@ -1,6 +1,7 @@
 // Keep this sandbox preload self-contained: Electron only permits built-in modules.
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('classic', {
+  onRefresh: (callback) => ipcRenderer.on('classic:refresh', () => callback()),
   onAudio: (callback) =>
     ipcRenderer.on('classic:audio-level', (_event, level) => callback(level)),
   onTab: (callback) =>

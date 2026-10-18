@@ -47,13 +47,109 @@ export class ClassicVisualizer extends Visualizer {
       return;
     }
     const mode = this.config.type;
+    const cover =
+      this.config.coverBackground !== false &&
+      [
+        'spectrum',
+        'oscilloscope',
+        'radial',
+        'mirror',
+        'starfield',
+        'bubbles',
+      ].includes(mode);
+    if (cover) ctx.clearRect(0, 0, w, h);
+    if (['pipes', 'mystify', 'bubbles'].includes(mode)) {
+      this.analyser.getByteFrequencyData(this.samples);
+      const energy =
+        this.samples.subarray(0, 96).reduce((a, b) => a + b, 0) / (96 * 255);
+      const t = now / 1000;
+      if (!cover) {
+        ctx.fillStyle = mode === 'mystify' ? 'rgba(5,8,18,.12)' : '#050812';
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (mode === 'mystify') {
+        for (let shape = 0; shape < 3; shape++) {
+          ctx.strokeStyle = `hsl(${shape * 100 + t * 18} 85% 65%)`;
+          ctx.lineWidth = 1 + energy * 2;
+          ctx.beginPath();
+          for (let i = 0; i < 5; i++) {
+            const x =
+              (0.5 +
+                0.43 * Math.sin(t * (0.31 + i * 0.037) + i * 2.4 + shape)) *
+              w;
+            const y =
+              (0.5 +
+                0.43 * Math.cos(t * (0.27 + i * 0.051) + i * 1.7 + shape)) *
+              h;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      } else if (mode === 'bubbles') {
+        for (let i = 0; i < 18; i++) {
+          const radius =
+            Math.min(w, h) * (0.035 + (i % 4) * 0.015) * (1 + energy * 0.35);
+          const x =
+            (0.5 + 0.45 * Math.sin(t * (0.11 + i * 0.003) + i * 2.4)) * w;
+          const y =
+            (0.5 + 0.43 * Math.cos(t * (0.14 + i * 0.004) + i * 1.7)) * h;
+          const g = ctx.createRadialGradient(
+            x - radius * 0.3,
+            y - radius * 0.3,
+            1,
+            x,
+            y,
+            radius,
+          );
+          g.addColorStop(0, '#ffffff50');
+          g.addColorStop(0.6, '#ffffff05');
+          g.addColorStop(1, `hsla(${i * 24 + t * 8} 85% 75% / .65)`);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Original rotating orthogonal pipe paths, projected from 3D.
+        for (let pipe = 0; pipe < 4; pipe++) {
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = `hsl(${pipe * 85 + t * 14} 75% 55%)`;
+          ctx.lineWidth =
+            Math.max(3, Math.min(w, h) * 0.025) * (1 + energy * 0.3);
+          ctx.beginPath();
+          let x = 0,
+            y = 0,
+            z = 0;
+          for (let i = 0; i < 28; i++) {
+            const direction =
+              Math.sin(i * 12.9898 + pipe * 78.233) > 0 ? 1 : -1;
+            if (i % 3 === 0) x += direction * 0.5;
+            else if (i % 3 === 1) y += direction * 0.5;
+            else z += direction * 0.5;
+            const a = t * 0.2 + pipe,
+              rx = x * Math.cos(a) - z * Math.sin(a),
+              rz = x * Math.sin(a) + z * Math.cos(a);
+            const perspective = 1 / (4 + rz * 0.3);
+            const px = w / 2 + rx * perspective * Math.min(w, h) * 0.6,
+              py = h / 2 + y * perspective * Math.min(w, h) * 0.6;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+      }
+      return;
+    }
     if (['radial', 'mirror', 'starfield', 'ribbon'].includes(mode)) {
       this.analyser.getByteFrequencyData(this.samples);
       const energy =
         this.samples.subarray(0, 96).reduce((sum, value) => sum + value, 0) /
         (96 * 255);
       ctx.fillStyle = mode === 'ribbon' ? 'rgba(5,8,18,0.18)' : '#050812';
-      ctx.fillRect(0, 0, w, h);
+      if (!cover) ctx.fillRect(0, 0, w, h);
       const t = now / 1000;
       if (mode === 'radial') {
         const radius = Math.min(w, h) * 0.22;
@@ -118,7 +214,7 @@ export class ClassicVisualizer extends Visualizer {
       return;
     }
     ctx.fillStyle = '#080d0a';
-    ctx.fillRect(0, 0, w, h);
+    if (!cover) ctx.fillRect(0, 0, w, h);
     if (this.config.type === 'oscilloscope') {
       this.analyser.getByteTimeDomainData(this.samples);
       ctx.strokeStyle = '#152a1d';

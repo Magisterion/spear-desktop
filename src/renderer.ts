@@ -41,6 +41,18 @@ let firstDataLoaded = false;
 
 // Use the site's own library navigation and play control for an empty queue.
 // Keep this listener available even before the player API has initialized.
+window.ipcRenderer.on('classic:browse', (_, action: string) => {
+  const destination =
+    action === 'home'
+      ? startingPages.Home
+      : action === 'library'
+        ? startingPages.Library
+        : null;
+  if (destination)
+    document
+      .querySelector<MusicPlayerAppElement>('ytmusic-app')
+      ?.navigate(destination);
+});
 let trayStartPending = false;
 window.ipcRenderer.on('classic:tray-play', async () => {
   if (trayStartPending) return;
