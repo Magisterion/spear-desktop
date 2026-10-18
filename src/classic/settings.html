@@ -532,6 +532,12 @@
           content.append(empty);
         }
       }
+      window.classic.onTab((name) => {
+        if (!categories.includes(name)) return;
+        tab = name;
+        $('search').value = '';
+        if (data) draw();
+      });
       $('search').oninput = () => draw();
       $('restart').onclick = () => request('restart');
       request('snapshot');

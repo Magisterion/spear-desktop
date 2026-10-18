@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 8f5d003df7ea03841bc88b844e3770e72284c092
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add independent player themes and repair compact controls")
+          test "$(git rev-parse HEAD^)" = 43da55d870b8e0d86de774bbd178147363884357
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Navigate directly to equalizer in an existing settings window")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

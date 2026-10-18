@@ -59,7 +59,7 @@ function localWindow(width: number, height: number, frame = true) {
 export function openSettings(win: BrowserWindow, tab?: string) {
   player = win;
   if (settings && !settings.isDestroyed()) {
-    if (tab) void settings.loadFile(settingsPage, { hash: tab });
+    if (tab) settings.webContents.send('classic:settings-tab', tab);
     settings.setAlwaysOnTop(win.isAlwaysOnTop(), 'pop-up-menu');
     settings.show();
     settings.focus();
