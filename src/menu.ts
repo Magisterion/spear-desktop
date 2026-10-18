@@ -464,9 +464,7 @@ export const mainMenuTemplate = async (
             },
             { type: 'separator' },
             {
-              label: t(
-                'main.menu.options.submenu.tray.submenu.play-pause-on-click',
-              ),
+              label: 'Single click: play/pause; double click: show window (off swaps actions)',
               type: 'checkbox',
               checked: config.get('options.trayClickPlayPause'),
               click(item: MenuItem) {

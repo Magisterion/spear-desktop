@@ -6,7 +6,7 @@ import path from 'node:path';
 import { app, dialog, net } from 'electron';
 import { gt, valid } from 'semver';
 
-const repository = 'Magisterion/pear-classic-desktop';
+const repository = 'Magisterion/spear-desktop';
 const assetName = 'YouTube-Music-Spear.exe';
 let busy = false;
 type Release = {

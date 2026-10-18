@@ -250,6 +250,7 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
     if (action === 'settings') openSettings(win);
+    if (action === 'show') { win.show(); win.focus(); }
   });
   ipcMain.handle(
     'classic:local',

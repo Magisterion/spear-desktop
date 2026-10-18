@@ -79,17 +79,36 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
   // MacOS only
   tray.setIgnoreDoubleClickEvents(true);
 
+  // Delay the single action so a double-click cannot also pause playback.
+  let clickTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearClick = () => {
+    clearTimeout(clickTimer);
+    clickTimer = undefined;
+  };
+  const showWindow = () => {
+    win.show();
+    win.focus();
+    app.dock?.show();
+  };
+  const togglePlayback = () => win.webContents.send('classic:tray-play');
   tray.on('click', () => {
-    if (config.get('options.trayClickPlayPause')) {
-      playPause();
-    } else if (win.isVisible()) {
-      win.hide();
-      app.dock?.hide();
-    } else {
-      win.show();
-      app.dock?.show();
-    }
+    clearClick();
+    clickTimer = setTimeout(() => {
+      clickTimer = undefined;
+      if (win.isDestroyed()) return;
+      if (config.get('options.trayClickPlayPause')) togglePlayback();
+      else showWindow();
+    }, 500);
   });
+  tray.on('double-click', () => {
+    clearClick();
+    if (win.isDestroyed()) return;
+    if (config.get('options.trayClickPlayPause')) showWindow();
+    else togglePlayback();
+  });
+  tray.on('right-click', clearClick);
+  win.once('closed', clearClick);
+  app.once('before-quit', clearClick);
 
   const template: MenuTemplate = [
     {

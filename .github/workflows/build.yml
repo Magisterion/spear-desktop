@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 627122f39efad5e096e7c86c3fd83ad219e9c604
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Harden Spear startup diagnostics and portable checks")
+          test "$(git rev-parse HEAD^)" = 62202d35062bb13f65f600834887896131a4bc32
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Prepare Spear portable release and configurable tray gestures")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -80,7 +80,7 @@ jobs:
           path: test-results/spear-preferences.png
           retention-days: 7
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     needs: windows
     runs-on: windows-latest
     permissions:
@@ -90,10 +90,17 @@ jobs:
         with:
           name: Spear-Windows-x64-portable
           path: release
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Publish portable release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$env:RELEASE_TAG" release/YouTube-Music-Spear.exe release/YouTube-Music-Spear.exe.sha256 --title "Spear $env:RELEASE_TAG" --generate-notes
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $tag = "v$version"
+          gh release view "$tag" --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Output "Release $tag already exists."; exit 0 }
+          gh release create "$tag" release/YouTube-Music-Spear.exe release/YouTube-Music-Spear.exe.sha256 --target "$env:RELEASE_SHA" --title "Spear $tag" --notes "Windows x64 portable. Download YouTube-Music-Spear.exe and place it in a writable folder. Settings are stored in the adjacent data folder. Based on Pear Desktop. Live YouTube playback, downloads and two-version portable updates still require user validation."
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

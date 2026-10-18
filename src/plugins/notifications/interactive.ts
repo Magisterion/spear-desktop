@@ -288,7 +288,8 @@ export default (
     }
   });
 
-  if (config().trayControls) {
+  // Spear owns Windows tray gestures; notification controls must not replace them.
+  if (config().trayControls && process.platform !== 'win32') {
     setTrayOnClick(() => {
       if (savedNotification) {
         savedNotification.close();

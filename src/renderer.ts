@@ -37,6 +37,41 @@ let isPluginLoaded = false;
 let isApiLoaded = false;
 let firstDataLoaded = false;
 
+// Use the site's own library navigation and play control for an empty queue.
+// Keep this listener available even before the player API has initialized.
+let trayStartPending = false;
+window.ipcRenderer.on('classic:tray-play', async () => {
+  if (trayStartPending) return;
+  const player = document.querySelector<Element & MusicPlayer>('#movie_player');
+  if (player?.getVideoData()?.video_id) {
+    if (player.getPlayerState() === 1) player.pauseVideo();
+    else player.playVideo();
+    return;
+  }
+  trayStartPending = true;
+  try {
+    const app = document.querySelector<MusicPlayerAppElement>('ytmusic-app');
+    app?.navigate(startingPages.Songs);
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      // Only search the liked-songs page, never a recommendation elsewhere.
+      const page = document.querySelector('ytmusic-browse-response[browse-id="FEmusic_liked_videos"]');
+      const play = page?.querySelector<HTMLElement>(
+        'ytmusic-responsive-list-item-renderer ytmusic-play-button-renderer',
+      );
+      if (play) {
+        play.click();
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    // A signed-out account or empty library needs the user's attention.
+    await window.ipcRenderer.invoke('classic:navigate', 'show');
+  } finally {
+    trayStartPending = false;
+  }
+});
+
 registerWindowDefaultTrustedTypePolicy();
 
 async function listenForApiLoad() {

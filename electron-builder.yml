@@ -26,4 +26,4 @@ directories:
 publish:
   provider: github
   owner: Magisterion
-  repo: pear-classic-desktop
+  repo: spear-desktop
