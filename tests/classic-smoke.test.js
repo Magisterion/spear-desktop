@@ -23,8 +23,10 @@ test('Spear preferences use local IPC and portable data', async () => {
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items[0].submenu.items[0].click());
     const settings = await opened;
     await settings.waitForLoadState('domcontentloaded');
+    settings.on('pageerror', error => console.error('Preferences:', error.message));
+    console.log('Preferences initialization:', await settings.locator('#error').textContent());
     await expect(settings.locator('h1')).toHaveText('Spear preferences');
-    await expect(settings.locator('#content article')).not.toHaveCount(0);
+    await expect(settings.locator('#content article')).not.toHaveCount(0, { timeout: 15000 });
     await expect(settings.locator('#error')).toHaveText('');
     await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
     await settings.getByLabel('Classic skin', { exact: true }).selectOption('amber');

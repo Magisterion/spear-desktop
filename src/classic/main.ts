@@ -1,5 +1,3 @@
-import path from 'node:path';
-
 import { deepmerge } from 'deepmerge-ts';
 import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { languageResources } from 'virtual:i18n';
@@ -12,6 +10,7 @@ import { getSongControls } from '@/providers/song-controls';
 import { registerCallback, type SongInfo } from '@/providers/song-info';
 
 import compactCss from './compact.css?inline';
+import localPreload from './preload.cjs?asset';
 import settingsPage from './settings.html?asset';
 import trayPage from './tray.html?asset';
 import { checkPortableUpdate } from './updater';
@@ -41,7 +40,7 @@ function localWindow(width: number, height: number, frame = true) {
     alwaysOnTop: !frame,
     skipTaskbar: !frame,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/classic.cjs'),
+      preload: localPreload,
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,

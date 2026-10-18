@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 62202d35062bb13f65f600834887896131a4bc32
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Prepare Spear portable release and configurable tray gestures")
+          test "$(git rev-parse HEAD^)" = 52983a8d24405f7a622e1dc1b68a169134cc5843
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Isolate the sandbox preferences preload")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

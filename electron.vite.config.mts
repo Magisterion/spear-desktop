@@ -87,7 +87,7 @@ export default defineConfig(({ mode }) => {
       },
       rolldownOptions: {
         external: mainAndPreloadExcludes,
-        input: { preload: './src/preload.ts', classic: './src/classic/preload.ts' },
+        input: './src/preload.ts',
       },
       minify: !isDev,
       cssMinify: !isDev,
