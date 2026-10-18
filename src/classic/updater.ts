@@ -91,6 +91,9 @@ function showUpdates() {
     height: 335,
     resizable: false,
     maximizable: false,
+    alwaysOnTop: BrowserWindow.getAllWindows().some((win) =>
+      win.isAlwaysOnTop(),
+    ),
     show: false,
     backgroundColor: '#17191d',
     title: 'YouTube Music Spear · Updates',

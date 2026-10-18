@@ -60,11 +60,13 @@ export function openSettings(win: BrowserWindow, tab?: string) {
   player = win;
   if (settings && !settings.isDestroyed()) {
     if (tab) void settings.loadFile(settingsPage, { hash: tab });
+    settings.setAlwaysOnTop(win.isAlwaysOnTop());
     settings.show();
     settings.focus();
     return;
   }
   settings = localWindow(940, 720);
+  settings.setAlwaysOnTop(win.isAlwaysOnTop());
   settings.on('closed', () => {
     settings = null;
   });
