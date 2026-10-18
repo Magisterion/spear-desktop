@@ -251,11 +251,19 @@ for (const automatic of [false, true])
           { timeout: 30000 },
         )
         .toBe(true);
-      expect(
-        await app.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()[0].isVisible(),
-        ),
-      ).toBe(!automatic);
+      const main = await app.firstWindow();
+      await main.waitForLoadState('domcontentloaded');
+      await expect
+        .poll(
+          () =>
+            app
+              .evaluate(({ BrowserWindow }) =>
+                BrowserWindow.getAllWindows()[0]?.isVisible(),
+              )
+              .catch(() => undefined),
+          { timeout: 20000 },
+        )
+        .toBe(!automatic);
     } finally {
       await app.close();
     }

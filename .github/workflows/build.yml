@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = a799f07eafe52eabfe60450c40992705165d33c2
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Keep settings accessible above an always-on-top player")
+          test "$(git rev-parse HEAD^)" = 916ce383ed7644ac80d6a4d79968fe35db7e17e7
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Wait for window readiness in startup smoke tests")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
