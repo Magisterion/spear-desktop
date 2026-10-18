@@ -40,7 +40,7 @@ ytmusic-app tp-yt-app-drawer {
     flex: 0 0 220px !important;
   }
   ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
-    :is(#player, #player-container) {
+    :is(#player, #player-container):not(:fullscreen) {
     box-sizing: border-box;
     height: 180px !important;
     min-height: 0 !important;

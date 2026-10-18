@@ -95,6 +95,16 @@ export const TitleBar = (props: TitleBarProps) => {
               'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z',
               'Settings',
             ],
+            [
+              'game',
+              'M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01',
+              'Night Run',
+            ],
+            [
+              'visualizer',
+              'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 12h2l2-4 2 8 2-4',
+              'Fullscreen visualizer',
+            ],
             ['back', 'M19 12H5m6-6-6 6 6 6', 'Back'],
             ['forward', 'M5 12h14m-6-6 6 6-6 6', 'Forward'],
             ['home', 'm3 10 9-7 9 7M6 9v12h12V9M10 21v-7h4v7', 'Home'],

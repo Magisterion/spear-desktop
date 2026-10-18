@@ -329,11 +329,11 @@ async function createMainWindow() {
 
   if (windowPosition.x === -1 && windowPosition.y === -1) {
     const area = screen.getPrimaryDisplay().workArea;
-    const width = Math.min(windowSize.width, area.width);
-    const height = Math.min(windowSize.height, area.height - 24);
+    const width = Math.min(windowSize.width, area.width - 64);
+    const height = Math.min(windowSize.height, area.height - 64);
     win.setBounds({
-      x: area.x + area.width - width - 12,
-      y: area.y + area.height - height - 12,
+      x: area.x + area.width - width - 32,
+      y: area.y + area.height - height - 32,
       width,
       height,
     });

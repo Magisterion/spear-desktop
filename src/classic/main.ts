@@ -23,6 +23,8 @@ let settings: BrowserWindow | null = null;
 let popup: BrowserWindow | null = null;
 let song: Partial<SongInfo> = {};
 let artwork = '';
+let audioLevel = 0;
+let audioLevelAt = 0;
 let artworkImage: SongInfo['image'];
 let player: BrowserWindow;
 const pendingRestart = new Set<string>();
@@ -81,7 +83,7 @@ export function openSettings(win: BrowserWindow, tab?: string) {
 export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
-    popup = localWindow(400, 236, false);
+    popup = localWindow(480, 280, false);
     popup.on('blur', () => popup?.hide());
     popup.on('closed', () => {
       popup = null;
@@ -93,8 +95,8 @@ export function showTrayPopup(win: BrowserWindow) {
   const cursor = screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint(cursor).workArea;
   popup.setPosition(
-    Math.max(area.x, Math.min(cursor.x - 200, area.x + area.width - 400)),
-    Math.max(area.y, Math.min(cursor.y - 246, area.y + area.height - 236)),
+    Math.max(area.x, Math.min(cursor.x - 240, area.x + area.width - 480)),
+    Math.max(area.y, Math.min(cursor.y - 290, area.y + area.height - 280)),
   );
   popup.show();
   popup.focus();
@@ -212,6 +214,7 @@ async function snapshot() {
     proxy: config.get('options.proxy'),
     minimizeOnAutoStart: config.get('options.minimizeOnAutoStart') ?? true,
     tray: config.get('options.tray'),
+    animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
     appearance: controls(
       options.filter((item) => item.id === 'classic-appearance'),
       'appearance',
@@ -284,6 +287,33 @@ export function setupClassic(win: BrowserWindow) {
     applyStyle();
   });
   applyStyle();
+  ipcMain.on('classic:audio-level', (event, level: unknown) => {
+    if (
+      event.sender !== win.webContents ||
+      typeof level !== 'number' ||
+      !Number.isFinite(level)
+    )
+      return;
+    audioLevel = Math.max(0, Math.min(1, level));
+    audioLevelAt = Date.now();
+    if (popup?.isVisible())
+      popup.webContents.send('classic:audio-level', audioLevel);
+  });
+  const openEntertainment = (action: string) => {
+    win.show();
+    win.focus();
+    popup?.hide();
+    if (action === 'game') win.webContents.send('classic:game');
+    else {
+      config.setPartial('plugins.visualizer', { enabled: true });
+      void win.webContents
+        .executeJavaScript(
+          `window.dispatchEvent(new Event('spear:fullscreen-visualizer'))`,
+          true,
+        )
+        .catch(() => {});
+    }
+  };
   ipcMain.handle('classic:visualizer-menu', (event) => {
     if (event.sender !== win.webContents) return;
     const names = {
@@ -318,6 +348,7 @@ export function setupClassic(win: BrowserWindow) {
     if (action === 'forward' && history.canGoForward()) history.goForward();
     if (action === 'home') win.loadURL('https://music.youtube.com/');
     if (action === 'library') win.loadURL('https://music.youtube.com/library');
+    if (action === 'game' || action === 'visualizer') openEntertainment(action);
     if (action === 'settings') openSettings(win);
     if (action === 'equalizer') openSettings(win, 'Equalizer');
     if (action === 'show') {
@@ -339,8 +370,12 @@ export function setupClassic(win: BrowserWindow) {
           elapsed: song.elapsedSeconds ?? 0,
           duration: song.songDuration ?? 0,
           paused: song.isPaused ?? true,
+          animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
+          bass: Date.now() - audioLevelAt < 500 ? audioLevel : 0,
           palette: skins[config.get('options.classicSkin')] ?? skins.graphite,
         };
+      if (action === 'game' || action === 'visualizer')
+        return openEntertainment(action);
       if (action === 'playPause')
         return win.webContents.send('classic:tray-play');
       if (action === 'next') return getSongControls(win).next();
@@ -372,6 +407,8 @@ export function setupClassic(win: BrowserWindow) {
         config.set('options.tray', value);
         pendingRestart.add('Tray visibility');
       }
+      if (action === 'animatedSpeakers' && typeof value === 'boolean')
+        config.set('options.animatedSpeakers', value);
       if (action === 'autoUpdates' && typeof value === 'boolean')
         config.set('options.autoUpdates', value);
       if (

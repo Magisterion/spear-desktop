@@ -1,3 +1,4 @@
+import './classic/night-run';
 import i18next from 'i18next';
 import { setTheme } from 'mdui/functions/setTheme.js';
 import 'mdui/mdui.css';

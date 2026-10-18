@@ -1,7 +1,15 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, readFile, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  open,
+  readFile,
+  rm,
+  rename,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { app, BrowserWindow, ipcMain, net, shell } from 'electron';
 import { gt, valid } from 'semver';
@@ -43,6 +51,45 @@ let downloadController: AbortController | undefined;
 let releaseFiles: { asset: Asset; checksum: Asset } | undefined;
 let verified: { staged: string; hash: string } | undefined;
 const updateFolder = () => path.join(app.getPath('userData'), 'updates');
+
+async function restoreDownload() {
+  const manifest = path.join(updateFolder(), 'verified.json');
+  try {
+    const saved = JSON.parse(await readFile(manifest, 'utf8')) as {
+      version: string;
+      hash: string;
+      size: number;
+    };
+    if (!valid(saved.version) || !gt(saved.version, app.getVersion())) {
+      await rm(manifest, { force: true });
+      return false;
+    }
+    if (
+      !/^[a-f0-9]{64}$/.test(saved.hash) ||
+      !Number.isSafeInteger(saved.size) ||
+      saved.size <= 0
+    )
+      return false;
+    const staged = path.join(updateFolder(), assetName + '.new');
+    if ((await stat(staged)).size !== saved.size) return false;
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(staged))
+      hash.update(chunk as Buffer);
+    if (hash.digest('hex') !== saved.hash) return false;
+    verified = { staged, hash: saved.hash };
+    setState({
+      phase: 'ready',
+      version: saved.version,
+      received: saved.size,
+      total: saved.size,
+      message:
+        'Your downloaded portable update is ready. No download is needed. Restart when convenient.',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function setState(change: Partial<typeof state>) {
   state = { ...state, ...change };
@@ -142,7 +189,7 @@ export async function checkPortableUpdate(manual: boolean) {
       setState({
         phase: 'unsupported',
         message:
-          'Automatic installation is available in the Windows portable build.',
+          'Automatic updating is available in the Windows portable build.',
       });
       return;
     }
@@ -157,9 +204,11 @@ export async function checkPortableUpdate(manual: boolean) {
           message:
             'Windows could not replace the executable. Close other copies of Spear and try again, or download the release manually. Your data folder was preserved.',
         });
-        showUpdates();
-        return;
       }
+    }
+    if (await restoreDownload()) {
+      showUpdates();
+      return;
     }
     const response = await net.fetch(
       `https://api.github.com/repos/${repository}/releases/latest`,
@@ -307,10 +356,22 @@ async function downloadUpdate() {
       throw new Error(
         'The saved file failed verification. Nothing was installed.',
       );
+    const manifest = path.join(updateFolder(), 'verified.json');
+    await writeFile(
+      manifest + '.tmp',
+      JSON.stringify({
+        version: state.version,
+        hash: expected,
+        size: asset.size,
+      }),
+      'utf8',
+    );
+    await rename(manifest + '.tmp', manifest);
     verified = { staged, hash: expected };
     setState({
       phase: 'ready',
-      message: 'Download verified. Restart when you are ready to install.',
+      message:
+        'Portable update verified and saved. Later keeps the download for your next restart.',
     });
   } catch (error) {
     await rm(staged, { force: true }).catch(() => {});
@@ -331,13 +392,13 @@ async function installUpdate() {
   if (state.phase !== 'ready' || !verified) return;
   setState({
     phase: 'installing',
-    message: 'Preparing the installer. Spear will restart shortly.',
+    message: 'Preparing the portable update. Spear will restart shortly.',
   });
   try {
     const executable = process.env.PORTABLE_EXECUTABLE_FILE;
     if (!executable)
       throw new Error('The portable executable could not be located.');
-    const handshake = path.join(updateFolder(), 'installer-ready');
+    const handshake = path.join(updateFolder(), 'updater-ready');
     await rm(handshake, { force: true });
     const payload = Buffer.from(
       JSON.stringify({
@@ -352,7 +413,8 @@ async function installUpdate() {
     // Only base64 JSON is interpolated; paths never become PowerShell source.
     const script = `$ErrorActionPreference = 'Stop'
 $p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')) | ConvertFrom-Json
-if ((Get-FileHash -LiteralPath $p.source -Algorithm SHA256).Hash.ToLower() -ne $p.hash) { exit 1 }
+try {
+if ((Get-FileHash -LiteralPath $p.source -Algorithm SHA256).Hash.ToLower() -ne $p.hash) { throw 'Downloaded file verification failed.' }
 [IO.File]::WriteAllText($p.ready, 'ready')
 Wait-Process -Id $p.pid -ErrorAction SilentlyContinue
 $backup = $p.target + '.previous'
@@ -376,9 +438,19 @@ try {
   Add-Type -AssemblyName System.Windows.Forms
   [System.Windows.Forms.MessageBox]::Show('Spear could not restart automatically. Start YouTube-Music-Spear.exe manually. Your data folder has been preserved.', 'YouTube Music Spear update') | Out-Null
 }
+} catch {
+  [IO.File]::WriteAllText($p.ready, ('error: ' + $_.Exception.Message))
+  exit 1
+}
 `;
     const child = spawn(
-      'powershell.exe',
+      path.join(
+        process.env.SystemRoot || 'C:\\Windows',
+        'System32',
+        'WindowsPowerShell',
+        'v1.0',
+        'powershell.exe',
+      ),
       [
         '-NoProfile',
         '-NonInteractive',
@@ -389,18 +461,27 @@ try {
       ],
       {
         detached: true,
-        stdio: 'ignore',
+        stdio: ['ignore', 'ignore', 'pipe'],
         windowsHide: true,
         cwd: path.dirname(executable),
       },
     );
+    let startupError = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      startupError = (startupError + chunk.toString()).slice(-1500);
+    });
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve);
       child.once('error', reject);
     });
     let ready = false;
-    for (let i = 0; i < 100; i++) {
-      if ((await readFile(handshake, 'utf8').catch(() => '')) === 'ready') {
+    for (let i = 0; i < 600; i++) {
+      const handshakeState = await readFile(handshake, 'utf8').catch(() => '');
+      if (handshakeState.startsWith('error:')) {
+        startupError = handshakeState;
+        break;
+      }
+      if (handshakeState === 'ready') {
         ready = true;
         break;
       }
@@ -410,9 +491,12 @@ try {
     if (!ready) {
       child.kill();
       throw new Error(
-        'The Windows installer did not start. Spear is still running. Try again or use the release download.',
+        'The portable updater could not start. Spear is still running. ' +
+          (startupError.trim() ||
+            'Windows may have blocked PowerShell, or file verification took too long. Try again or use the release download.'),
       );
     }
+    child.stderr?.destroy();
     child.unref();
     // Allow the update window to close during the normal application shutdown.
     window?.removeAllListeners('close');
@@ -423,7 +507,7 @@ try {
       message:
         error instanceof Error
           ? error.message
-          : 'Installation could not start. Your current version is unchanged.',
+          : 'The portable update could not start. Your current version is unchanged.',
     });
   }
 }

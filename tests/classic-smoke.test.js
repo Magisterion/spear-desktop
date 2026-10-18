@@ -1,3 +1,4 @@
+import ts from 'typescript';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -231,8 +232,8 @@ test('Spear preferences use local IPC and portable data', async () => {
     await app.evaluate(
       ({ BrowserWindow }, { preload, page }) => {
         const win = new BrowserWindow({
-          width: 400,
-          height: 236,
+          width: 480,
+          height: 280,
           frame: false,
           webPreferences: { preload, contextIsolation: true, sandbox: true },
         });
@@ -267,6 +268,93 @@ test('Spear preferences use local IPC and portable data', async () => {
       path: path.join(root, 'test-results', 'spear-tray.png'),
     });
     await tray.close();
+    const gameOpened = app.waitForEvent('window');
+    await app.evaluate(async ({ BrowserWindow }) => {
+      const preview = new BrowserWindow({
+        width: 720,
+        height: 650,
+        webPreferences: { sandbox: true, contextIsolation: true },
+      });
+      await preview.loadURL(
+        'data:text/html,<html><body><video></video></body></html>',
+      );
+    });
+    const game = await gameOpened;
+    await game.evaluate(() => {
+      window.gameListeners = {};
+      window.audioLevel = -1;
+      window.ipcRenderer = {
+        on: (channel, callback) => {
+          window.gameListeners[channel] = callback;
+        },
+        send: (channel, value) => {
+          if (channel === 'classic:audio-level') window.audioLevel = value;
+        },
+      };
+    });
+    await game.addScriptTag({
+      content: ts.transpileModule(
+        await fs.readFile(path.join(root, 'src/classic/night-run.ts'), 'utf8'),
+        {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.None,
+          },
+        },
+      ).outputText,
+    });
+    await game.evaluate(() => window.gameListeners['classic:game']());
+    await expect(
+      game.getByText('Play music to bring the world to life'),
+    ).toBeVisible();
+    await game
+      .getByRole('button', { name: 'Autopilot: off', exact: true })
+      .click();
+    await expect(
+      game.getByRole('button', { name: 'Autopilot: on', exact: true }),
+    ).toBeVisible();
+    await game
+      .getByRole('button', { name: 'Jump · Space', exact: true })
+      .click();
+    await game.evaluate(() => {
+      Object.defineProperty(document.querySelector('video'), 'paused', {
+        value: false,
+        configurable: true,
+      });
+      document.dispatchEvent(
+        new CustomEvent('peard:audio-can-play', {
+          detail: {
+            audioSource: { connect() {}, disconnect() {} },
+            audioContext: {
+              createAnalyser: () => ({
+                fftSize: 256,
+                frequencyBinCount: 128,
+                getByteFrequencyData: (bins) => bins.fill(200),
+                disconnect() {},
+              }),
+            },
+          },
+        }),
+      );
+    });
+    await expect
+      .poll(() => game.evaluate(() => window.audioLevel))
+      .toBeGreaterThan(0.7);
+    await game.evaluate(() =>
+      Object.defineProperty(document.querySelector('video'), 'paused', {
+        value: true,
+        configurable: true,
+      }),
+    );
+    await expect.poll(() => game.evaluate(() => window.audioLevel)).toBe(0);
+    await game.screenshot({
+      path: path.join(root, 'test-results/spear-night-run.png'),
+    });
+    await game.keyboard.press('Escape');
+    await expect(game.locator('#spear-night-run')).toHaveCount(0);
+    await game.evaluate(() => window.gameListeners['classic:game']());
+    await expect(game.locator('#spear-night-run')).toHaveCount(1);
+    await game.close();
     const consent = await app.firstWindow();
     await consent.route('https://consent.youtube.com/**', (route) =>
       route.fulfill({
@@ -360,7 +448,7 @@ test('Portable update shows progress, cancels and verifies before offering resta
   );
   const executable = path.join(temporary, 'YouTube-Music-Spear.exe');
   await fs.writeFile(executable, 'unchanged test executable');
-  const app = await electron.launch({
+  let app = await electron.launch({
     cwd: root,
     args: [root, '--no-sandbox', '--disable-gpu'],
     env: {
@@ -473,7 +561,7 @@ test('Portable update shows progress, cancels and verifies before offering resta
       .getByRole('button', { name: 'Download update', exact: true })
       .click();
     await expect(
-      update.getByRole('button', { name: 'Restart and install', exact: true }),
+      update.getByRole('button', { name: 'Restart and update', exact: true }),
     ).toBeVisible({ timeout: 15000 });
     expect(
       (
@@ -493,6 +581,45 @@ test('Portable update shows progress, cancels and verifies before offering resta
     await update.screenshot({
       path: path.join(root, 'test-results', 'spear-update.png'),
     });
+    await update.getByRole('button', { name: 'Later', exact: true }).click();
+    await app.close();
+    app = await electron.launch({
+      cwd: root,
+      args: [root, '--no-sandbox', '--disable-gpu'],
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORTABLE_EXECUTABLE_DIR: temporary,
+        PORTABLE_EXECUTABLE_FILE: executable,
+      },
+    });
+    await expect
+      .poll(
+        () =>
+          app
+            .evaluate(
+              ({ Menu }) =>
+                Menu.getApplicationMenu()?.items[0]?.label === 'Settings',
+            )
+            .catch(() => false),
+        { timeout: 30000 },
+      )
+      .toBe(true);
+    // No mocked network on the second launch: a saved verified update must work offline.
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu().items[0].submenu.items[0].click(),
+    );
+    const reopenedSettings = await localWindow(app, 'settings');
+    await reopenedSettings
+      .getByRole('button', { name: 'Check for updates', exact: true })
+      .click();
+    const restored = await localWindow(app, 'updater');
+    await expect(
+      restored.getByRole('button', { name: 'Restart and update', exact: true }),
+    ).toBeVisible();
+    await expect(restored.locator('#message')).toContainText(
+      'No download is needed',
+    );
     // Do not execute the fake update. Installation requires an explicit user action.
   } finally {
     await app.close();

@@ -19,7 +19,7 @@
         overflow: hidden;
       }
       body {
-        padding: 16px 18px;
+        padding: 18px 20px;
         color: var(--shell-text, #edf1f7);
         background: linear-gradient(
           145deg,
@@ -60,8 +60,8 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        height: 24px;
-        margin-bottom: 14px;
+        height: 32px;
+        margin-bottom: 18px;
       }
       .brand {
         font-size: 11px;
@@ -136,7 +136,8 @@
         align-items: center;
         justify-content: center;
         gap: 17px;
-        margin-top: 10px;
+        margin-top: 16px;
+        margin-bottom: 12px;
       }
       .controls button {
         width: 34px;
@@ -200,6 +201,42 @@
         color: #ffb8b8;
         pointer-events: none;
       }
+      .speaker {
+        width: 32px;
+        height: 60px;
+        border: 1px solid var(--shell-muted);
+        background: var(--shell-bottom);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 3px;
+      }
+      .speaker::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border: 2px solid var(--shell-muted);
+        border-radius: 50%;
+      }
+      .speaker::after {
+        content: '';
+        width: 21px;
+        height: 21px;
+        border: 3px solid var(--shell-accent);
+        border-radius: 50%;
+        background: var(--shell-surface, #20232a);
+        transform: scale(calc(0.85 + var(--bass, 0) * 0.25));
+        transition: transform 80ms linear;
+      }
+      body[data-speakers='false'] .speaker {
+        display: none;
+      }
+      .brand {
+        max-width: 190px;
+      }
+      .tools {
+        flex-shrink: 0;
+      }
     </style>
   </head>
   <body>
@@ -234,6 +271,30 @@
             />
           </svg>
         </button>
+        <button data-action="game" title="Night Run" aria-label="Night Run">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            />
+          </svg>
+        </button>
+        <button
+          data-action="visualizer"
+          title="Fullscreen visualizer"
+          aria-label="Fullscreen visualizer"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 12h2l2-4 2 8 2-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            />
+          </svg>
+        </button>
         <button
           id="quit"
           data-action="quit"
@@ -264,6 +325,7 @@
       </div>
     </div>
     <div class="controls">
+      <span class="speaker" aria-hidden="true"></span>
       <button
         data-action="previous"
         title="Previous track"
@@ -282,6 +344,7 @@
           <path d="M17 5h2v14h-2zM5 5l11 7-11 7Z" />
         </svg>
       </button>
+      <span class="speaker" aria-hidden="true"></span>
     </div>
     <div class="bottom">
       <span id="elapsed">0:00</span
@@ -313,11 +376,25 @@
         return Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0');
       };
       let refreshing = false;
+      let audioAt = 0;
+      function audio(level) {
+        audioAt = Date.now();
+        document.body.style.setProperty(
+          '--bass',
+          String(Math.max(0, Math.min(1, Number(level) || 0))),
+        );
+      }
+      window.classic.onAudio?.(audio);
+      setInterval(() => {
+        if (Date.now() - audioAt > 500) audio(0);
+      }, 250);
       async function refresh() {
         if (refreshing) return;
         refreshing = true;
         try {
           const s = await window.classic.request('song');
+          document.body.dataset.speakers = String(s.animatedSpeakers !== false);
+          audio(s.paused ? 0 : s.bass);
           if (s.palette) {
             document.body.dataset.pixel = String(!!s.palette.pixel);
             document.body.style.setProperty(

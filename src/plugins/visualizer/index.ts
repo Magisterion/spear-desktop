@@ -226,7 +226,7 @@ export default createPlugin({
           'Click for fullscreen · Right-click to change visualizer';
         const fullscreen = () => {
           if (document.fullscreenElement) void document.exitFullscreen();
-          else void canvas!.requestFullscreen().catch(() => {});
+          else void visualizerContainer.requestFullscreen().catch(() => {});
         };
         canvas.onclick = fullscreen;
         canvas.onkeydown = (e) => {
@@ -306,7 +306,7 @@ export default createPlugin({
       const resizeVisualizer = () => {
         if (canvas && visualizerContainer) {
           const { width, height } =
-            document.fullscreenElement === canvas
+            document.fullscreenElement === visualizerContainer
               ? {
                   width: String(window.innerWidth),
                   height: String(window.innerHeight),

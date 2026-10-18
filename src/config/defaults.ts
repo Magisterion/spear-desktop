@@ -17,6 +17,7 @@ export interface DefaultConfig {
     language?: string;
     classicSkin: string;
     classicPlayerTheme: string;
+    animatedSpeakers: boolean;
     tray: boolean;
     appVisible: boolean;
     firstRunComplete: boolean;
@@ -46,7 +47,7 @@ export interface DefaultConfig {
 
 export const defaultConfig: DefaultConfig = {
   'window-size': {
-    width: 720,
+    width: 840,
     height: 1100,
   },
   'window-maximized': false,
@@ -59,6 +60,7 @@ export const defaultConfig: DefaultConfig = {
     language: 'en',
     classicSkin: 'graphite',
     classicPlayerTheme: 'graphite',
+    animatedSpeakers: true,
     tray: true,
     appVisible: false,
     firstRunComplete: false,

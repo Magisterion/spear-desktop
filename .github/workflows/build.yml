@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 43da55d870b8e0d86de774bbd178147363884357
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Navigate directly to equalizer in an existing settings window")
+          test "$(git rev-parse HEAD^)" = 6e987452d4c835bf534f4eae55dddfd48be99fd6
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add audio-reactive Night Run, tray speakers and persistent portable updates")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -82,6 +82,7 @@ jobs:
             test-results/spear-themes.png
             test-results/spear-tray.png
             test-results/spear-update.png
+            test-results/spear-night-run.png
           retention-days: 7
   release:
     if: always() && needs.windows.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
