@@ -179,6 +179,7 @@ function openGame() {
   closeGame = (notifyMain = true) => {
     cancelAnimationFrame(raf);
     stopActivity();
+    artworkObserver.disconnect();
     document.removeEventListener('play', wake, true);
     document.removeEventListener('pause', wake, true);
     document.removeEventListener('ended', wake, true);
@@ -337,6 +338,20 @@ function openGame() {
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
   };
+  cover.onload = wake;
+  const artworkObserver = new MutationObserver(() => {
+    nextArtworkCheck = 0;
+    wake();
+  });
+  artworkObserver.observe(
+    document.querySelector('ytmusic-player-bar') ?? document.body,
+    {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src', 'srcset'],
+    },
+  );
   const stopActivity = onActivityChange(wake);
   document.addEventListener('play', wake, true);
   document.addEventListener('pause', wake, true);
