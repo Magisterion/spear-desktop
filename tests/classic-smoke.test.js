@@ -879,13 +879,38 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect
       .poll(() => nativePlayer.evaluate((w) => w.isFocused()))
       .toBe(true);
+    await expect
+      .poll(() => player.evaluate(() => document.hasFocus()))
+      .toBe(true);
     await nativePlayer.evaluate((w) => {
+      w.testEscapeInputs = [];
+      w.webContents.on('before-input-event', (_event, input) => {
+        if (input.type === 'keyDown') w.testEscapeInputs.push(input.key);
+      });
       w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
       w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     });
-    await expect
-      .poll(() => nativePlayer.evaluate((w) => !w.isFullScreen()))
-      .toBe(true);
+    try {
+      await expect
+        .poll(() => nativePlayer.evaluate((w) => !w.isFullScreen()))
+        .toBe(true);
+    } catch (error) {
+      console.log(
+        'Escape diagnostic',
+        await nativePlayer.evaluate((w) => ({
+          inputs: w.testEscapeInputs,
+          fullscreen: w.isFullScreen(),
+          focused: w.isFocused(),
+        })),
+        await player.evaluate(() => ({
+          game: !!document.getElementById('spear-pulsefield'),
+          fullscreen: document.fullscreenElement?.tagName,
+          pointer: document.pointerLockElement?.tagName,
+          focus: document.hasFocus(),
+        })),
+      );
+      throw error;
+    }
     await expect(player.locator('#spear-pulsefield')).toHaveCount(0);
     await player.evaluate(() =>
       window.ipcRenderer.invoke('classic:navigate', 'game'),

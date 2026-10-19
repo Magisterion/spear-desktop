@@ -96,7 +96,7 @@ function openGame() {
   let hadPointerLock = false;
   const pointerLockChanged = () => {
     const locked = root.pointerLockElement === canvas;
-    if (hadPointerLock && !locked && document.hasFocus()) closeGame?.();
+    if (hadPointerLock && !locked) closeGame?.();
     hadPointerLock = locked;
   };
   document.addEventListener('pointerlockchange', pointerLockChanged);

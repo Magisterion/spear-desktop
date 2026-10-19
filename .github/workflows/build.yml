@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 711e3df6ad7844e2855ada04239c21b466332d28
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Avoid stale game-close acknowledgements")
+          test "$(git rev-parse HEAD^)" = 805175887a369a05616866aaea3c004d53b28861
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Close the game reliably when pointer lock ends")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
