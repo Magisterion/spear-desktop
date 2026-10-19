@@ -2,7 +2,7 @@ import { audioMotion } from './audio';
 import { createDrive } from './drive';
 
 // Prism Run: fixed perspective, an unmarked surface, and the live player backdrop.
-let closeGame: (() => void) | null = null;
+let closeGame: ((notifyMain?: boolean) => void) | null = null;
 function openGame() {
   if (closeGame) return;
   const previousFocus = document.activeElement as HTMLElement | null;
@@ -105,7 +105,7 @@ function openGame() {
   window.addEventListener('blur', clearKeys);
   canvas.focus();
   void canvas.requestPointerLock()?.catch(() => {});
-  closeGame = () => {
+  closeGame = (notifyMain = true) => {
     cancelAnimationFrame(raf);
     resize.disconnect();
     document.removeEventListener('pointerlockchange', pointerLockChanged);
@@ -123,7 +123,8 @@ function openGame() {
     document.dispatchEvent(new Event('spear:surface-change'));
     closeGame = null;
     previousFocus?.focus();
-    void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
+    if (notifyMain)
+      void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
   };
   const project = (x: number, z: number) => {
     const depth = 0.04 + 0.96 * z * z;
@@ -417,7 +418,8 @@ function openGame() {
   raf = requestAnimationFrame(frame);
 }
 window.ipcRenderer.on('classic:game', openGame);
-window.ipcRenderer.on('classic:game-close', () => closeGame?.());
+// Main already restored the window. Do not echo an exit into a newer session.
+window.ipcRenderer.on('classic:game-close', () => closeGame?.(false));
 window.addEventListener('spear:fullscreen-visualizer', () => {
   closeGame?.();
   document.querySelector<HTMLCanvasElement>('#visualizer')?.click();

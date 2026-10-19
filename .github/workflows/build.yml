@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = df3bf1b0d96e0d9679972844248995769a4ae93e
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Stop idle rendering and restore library and tray preferences")
+          test "$(git rev-parse HEAD^)" = 711e3df6ad7844e2855ada04239c21b466332d28
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Avoid stale game-close acknowledgements")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

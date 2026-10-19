@@ -637,7 +637,11 @@ test('Spear preferences use local IPC and portable data', async () => {
             window.audioMessages = (window.audioMessages || 0) + 1;
           }
         },
-        invoke: async () => ({ visible: true, speakers: true }),
+        invoke: async (_channel, action) => {
+          if (action === 'game-exit')
+            window.gameExitRequests = (window.gameExitRequests || 0) + 1;
+          return { visible: true, speakers: true };
+        },
       };
     });
     await game.addScriptTag({
@@ -844,7 +848,9 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(game.locator('#spear-pulsefield')).toHaveCount(1);
+    const exits = await game.evaluate(() => window.gameExitRequests);
     await game.evaluate(() => window.gameListeners['classic:game-close']());
+    expect(await game.evaluate(() => window.gameExitRequests)).toBe(exits);
     await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.close();
     const consent = player;
