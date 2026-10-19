@@ -32,6 +32,24 @@ let gamePendingRestore: boolean | null = null;
 let audioLevelAt = 0;
 let artworkImage: SongInfo['image'];
 let player: BrowserWindow;
+function activitySnapshot() {
+  return {
+    visible:
+      !!player &&
+      !player.isDestroyed() &&
+      player.isVisible() &&
+      !player.isMinimized(),
+    speakers:
+      !!popup &&
+      !popup.isDestroyed() &&
+      popup.isVisible() &&
+      config.get('options.animatedSpeakers') !== false,
+  };
+}
+function publishActivity() {
+  if (player && !player.isDestroyed())
+    player.webContents.send('classic:activity', activitySnapshot());
+}
 const pendingRestart = new Set<string>();
 const actions = new Map<string, () => unknown>();
 export const markRestartNeeded = (reason: string) => pendingRestart.add(reason);
@@ -105,11 +123,14 @@ export function showTrayPopup(win: BrowserWindow) {
   player = win;
   if (!popup || popup.isDestroyed()) {
     popup = localWindow(480, 320, false);
+    popup.on('show', publishActivity);
+    popup.on('hide', publishActivity);
     popup.on('blur', () => {
       if (!config.get('options.trayPinned')) popup?.hide();
     });
     popup.on('closed', () => {
       popup = null;
+      publishActivity();
     });
     popup.once('ready-to-show', () => showTrayPopup(win));
     popup.webContents.on('did-finish-load', () =>
@@ -334,6 +355,14 @@ export function migrateClassicPreferences() {
 
 export function setupClassic(win: BrowserWindow) {
   player = win;
+  ipcMain.handle('classic:activity', (event) =>
+    event.sender === win.webContents ? activitySnapshot() : null,
+  );
+  win.on('show', publishActivity);
+  win.on('hide', publishActivity);
+  win.on('minimize', publishActivity);
+  win.on('restore', publishActivity);
+  win.webContents.on('did-finish-load', publishActivity);
   win.on('always-on-top-changed', (_event, pinned) => {
     win.webContents.send('classic:pin-state', pinned);
     settings?.setAlwaysOnTop(pinned, 'pop-up-menu');
@@ -623,8 +652,10 @@ export function setupClassic(win: BrowserWindow) {
       }
       if (action === 'trayClickPlayPause' && typeof value === 'boolean')
         config.set('options.trayClickPlayPause', value);
-      if (action === 'animatedSpeakers' && typeof value === 'boolean')
+      if (action === 'animatedSpeakers' && typeof value === 'boolean') {
         config.set('options.animatedSpeakers', value);
+        publishActivity();
+      }
       if (action === 'autoUpdates' && typeof value === 'boolean')
         config.set('options.autoUpdates', value);
       if (

@@ -38,6 +38,7 @@ function openGame() {
   footer.append(meter);
   root.append(style, canvas, status, score, footer);
   document.body.append(host);
+  document.dispatchEvent(new Event('spear:surface-change'));
   const ctx = canvas.getContext('2d')!;
   const drive = createDrive(),
     run = drive.run;
@@ -119,6 +120,7 @@ function openGame() {
     cover.onload = null;
     cover.removeAttribute('src');
     host.remove();
+    document.dispatchEvent(new Event('spear:surface-change'));
     closeGame = null;
     previousFocus?.focus();
     void window.ipcRenderer.invoke('classic:navigate', 'game-exit');

@@ -100,6 +100,12 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
   const togglePlayback = () => win.webContents.send('classic:tray-play');
   tray.on('click', () => {
     clearClick();
+    if (win.isDestroyed()) return;
+    // Showing a window is safe to repeat and need not await a double-click.
+    if (!config.get('options.trayClickPlayPause')) {
+      showWindow();
+      return;
+    }
     clickTimer = setTimeout(() => {
       clickTimer = undefined;
       if (win.isDestroyed()) return;

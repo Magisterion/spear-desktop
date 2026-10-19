@@ -1,3 +1,4 @@
+import { animateVisualizer } from '@/classic/activity';
 import { Visualizer } from './visualizer';
 
 import type { VisualizerPluginConfig } from '../index';
@@ -5,10 +6,9 @@ import type { VisualizerPluginConfig } from '../index';
 /** Original Canvas renderers; no third-party artwork, presets or trademarks. */
 export class ClassicVisualizer extends Visualizer {
   private analyser: AnalyserNode;
-  private frame = 0;
+  private stopAnimation: () => void;
   private samples: Uint8Array<ArrayBuffer>;
   private peaks = new Float32Array(48);
-  private lastTime = 0;
   constructor(
     context: AudioContext,
     source: MediaElementAudioSourceNode,
@@ -23,12 +23,9 @@ export class ClassicVisualizer extends Visualizer {
     this.analyser.smoothingTimeConstant = 0.8;
     gain.connect(this.analyser);
     this.samples = new Uint8Array(this.analyser.frequencyBinCount);
-    this.frame = requestAnimationFrame(this.draw);
+    this.stopAnimation = animateVisualizer(canvas, this.draw);
   }
   private draw = (now: number) => {
-    this.frame = requestAnimationFrame(this.draw);
-    if (document.hidden || now - this.lastTime < 1000 / 30) return;
-    this.lastTime = now;
     const ctx = this.canvas.getContext('2d');
     if (!ctx) return;
     const { width: w, height: h } = this.canvas;
@@ -269,7 +266,7 @@ export class ClassicVisualizer extends Visualizer {
     this.canvas.height = height;
   }
   destroy() {
-    cancelAnimationFrame(this.frame);
+    this.stopAnimation();
     this.analyser.disconnect();
     this.audioNode.disconnect();
     try {

@@ -312,7 +312,7 @@ async function createMainWindow() {
     backgroundColor: '#000',
     show: false,
     webPreferences: {
-      backgroundThrottling: false,
+      backgroundThrottling: true,
       contextIsolation: true,
       preload: path.join(__dirname, '..', 'preload', 'preload.cjs'),
       ...(isTesting()

@@ -1,3 +1,5 @@
+import { activity, onActivityChange } from '@/classic/activity';
+
 /** A single visual surface layered over the site's media without moving its video node. */
 export function createVisualizerStage() {
   let stage = document.querySelector<HTMLElement>('#spear-visualizer-stage');
@@ -20,6 +22,7 @@ export function createVisualizerStage() {
     container.addEventListener(type, (event) => event.stopPropagation());
   let mountedPlayer: Element | null = null;
   let media = false;
+  let previousLayout = '';
   const cover = document.createElement('img');
   cover.className = 'spear-visualizer-cover';
   cover.alt = '';
@@ -29,11 +32,26 @@ export function createVisualizerStage() {
       'ytmusic-player-bar img.image, ytmusic-player-bar img',
     );
     const src = image?.currentSrc || image?.src || '';
+    const player = document.querySelector('ytmusic-player');
+    const playerState = player?.getAttribute('player-ui-state');
+    const key = JSON.stringify([
+      src,
+      playerState,
+      media,
+      document.fullscreenElement === container,
+    ]);
+    // Native custom elements can react to our attributes with their own DOM updates.
+    // Do not write the same state back and create an observer feedback loop.
+    if (
+      key === previousLayout &&
+      mountedPlayer === player &&
+      (!player || container.parentElement === player)
+    )
+      return;
+    previousLayout = key;
     if (src && cover.src !== src) cover.src = src;
     cover.hidden = !src;
     if (document.fullscreenElement === container) return;
-    const player = document.querySelector('ytmusic-player');
-    const playerState = player?.getAttribute('player-ui-state');
     if (player instanceof HTMLElement) {
       player.style.setProperty(
         '--spear-artwork',
@@ -69,7 +87,19 @@ export function createVisualizerStage() {
     document.documentElement.classList.toggle('spear-show-media', media);
   };
   layout();
-  const timer = setInterval(layout, 250);
+  const sync = () => {
+    if (activity.visible) layout();
+  };
+  const off = onActivityChange(sync);
+  document.addEventListener('fullscreenchange', sync);
+  const observer = new MutationObserver(sync);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['player-ui-state', 'src'],
+  });
+  sync();
   return {
     container,
     dismissMini() {
@@ -96,9 +126,12 @@ export function createVisualizerStage() {
         ?.setAttribute('aria-pressed', 'true');
       document.documentElement.classList.remove('spear-show-media');
       mountedPlayer?.classList.add('spear-visualizer-active');
+      layout();
     },
     dispose() {
-      clearInterval(timer);
+      off();
+      observer.disconnect();
+      document.removeEventListener('fullscreenchange', sync);
       mountedPlayer?.classList.remove(
         'spear-visualizer-active',
         'spear-media-backdrop',

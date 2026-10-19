@@ -15,6 +15,11 @@ export type IStore = InstanceType<
 >;
 
 const migrations = {
+  '>=3.12.17'(store: IStore) {
+    store.set('options.trayClickPlayPause', false);
+    if (store.get('plugins.album-color-theme.ratio') === 0.5)
+      store.set('plugins.album-color-theme.ratio', 0.3);
+  },
   '>=3.12.16'(store: IStore) {
     store.set('options.alwaysOnTop', false);
     store.set('options.trayPinned', false);

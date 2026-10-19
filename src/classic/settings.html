@@ -233,6 +233,7 @@
       const categories = [
         'General',
         'Appearance',
+        'Like buttons',
         'Themes',
         'Album colors',
         'Visualizers',
@@ -243,6 +244,7 @@
         'Downloads',
         'Integrations',
         'Privacy & network',
+        'Compatibility & maintenance',
         'About',
       ];
       const $ = (id) => document.getElementById(id);
@@ -367,11 +369,9 @@
           a.append(row);
           const matches = (c) =>
             !query || JSON.stringify(c).toLowerCase().includes(query);
-          const used = new Set();
           const option = (id, parent) => {
             const c = data.general.find((c) => c.menuId === id);
             if (c) {
-              used.add(c.id);
               if (matches(c)) control(c, parent);
             }
           };
@@ -421,15 +421,6 @@
             'animatedSpeakers',
             'Animated speakers in tray widget',
           );
-          const advanced = group('Compatibility & maintenance');
-          data.general.forEach((c) => {
-            if (used.has(c.id)) return;
-            if (c.menuId === 'classic-advanced')
-              c.children
-                ?.filter(matches)
-                .forEach((child) => control(child, advanced));
-            else if (matches(c)) control(c, advanced);
-          });
           const updates = group('Updates');
           toggle(updates, 'autoUpdates', 'Check for updates at startup');
           const updatesRow = el('div');
@@ -438,6 +429,31 @@
           update.onclick = () => request('update');
           updatesRow.append(update, el('span', `Version ${data.version}`));
           updates.append(updatesRow);
+        }
+        if (tab === 'Compatibility & maintenance' || query) {
+          const a = el('article');
+          a.append(el('h2', 'Compatibility & maintenance'));
+          data.general
+            .filter((c) => c.menuId === 'classic-advanced')
+            .flatMap((c) => c.children || [])
+            .filter(
+              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
+            )
+            .forEach((c) => control(c, a));
+          if (a.children.length > 1) content.append(a);
+        }
+        if (tab === 'Like buttons' || query) {
+          const a = el('article');
+          a.append(el('h2', 'Like buttons'));
+          data.appearance
+            .flatMap((c) => c.children || [c])
+            .filter((c) => c.menuId === 'classic-like-buttons')
+            .flatMap((c) => c.children || [])
+            .filter(
+              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
+            )
+            .forEach((c) => control(c, a));
+          if (a.children.length > 1) content.append(a);
         }
         if (tab === 'Themes' && !query) {
           const a = el('article');
@@ -506,7 +522,12 @@
           a.append(el('h2', 'Appearance options'));
           data.appearance
             .flatMap((c) => c.children || [c])
-            .filter((c) => c.menuId !== 'classic-custom-themes')
+            .filter(
+              (c) =>
+                !['classic-custom-themes', 'classic-like-buttons'].includes(
+                  c.menuId,
+                ),
+            )
             .filter(
               (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
             )

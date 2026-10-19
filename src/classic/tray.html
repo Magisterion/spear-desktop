@@ -477,7 +477,7 @@
       }
       window.classic.onAudio?.(audio);
       setInterval(() => {
-        if (Date.now() - audioAt > 500) audio(0);
+        if (!document.hidden && Date.now() - audioAt > 500) audio(0);
       }, 250);
       async function refresh() {
         if (refreshing) return;

@@ -482,7 +482,9 @@ function applyAppearanceOptions() {
   // Remove upgrade button
   if (window.mainConfig.get('options.removeUpgradeButton')) {
     const itemsSelector = 'ytmusic-guide-section-renderer #items';
-    let selector = 'ytmusic-guide-entry-renderer:last-child';
+    // Never guess by position: Library may be the last item.
+    let selector =
+      'ytmusic-guide-entry-renderer:has(a[href*="/music_premium"])';
 
     const upgradeBtnIcon = document.querySelector<SVGGElement>(
       'iron-iconset-svg[name="yt-sys-icons"] #\u0079\u006f\u0075\u0074\u0075\u0062\u0065_music_monochrome',

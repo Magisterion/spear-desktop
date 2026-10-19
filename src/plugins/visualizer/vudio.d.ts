@@ -29,6 +29,7 @@ declare module 'vudio/umd/vudio' {
       options: VudioOptions = {},
     );
 
+    analyser: AnalyserNode & { context: AudioContext };
     dance(): void;
     pause(): void;
     setOption(options: VudioOptions): void;

@@ -1,3 +1,4 @@
+import { animateVisualizer } from '@/classic/activity';
 import { milkdropPresets } from '../preset-catalog';
 import Butterchurn from 'butterchurn';
 import ButterchurnPresets from 'butterchurn-presets';
@@ -9,7 +10,7 @@ import type { VisualizerPluginConfig } from '../index';
 class ButterchurnVisualizer extends Visualizer {
   private readonly visualizer: ReturnType<typeof Butterchurn.createVisualizer>;
   private destroyed: boolean = false;
-  private animFrameHandle: number | null;
+  private stopAnimation: () => void;
 
   constructor(
     audioContext: AudioContext,
@@ -58,7 +59,6 @@ class ButterchurnVisualizer extends Visualizer {
         nextPreset = performance.now() + 45000;
       }
       this.visualizer.render();
-      this.animFrameHandle = requestAnimationFrame(renderVisualizer);
     };
 
     this.visualizer = Butterchurn.createVisualizer(audioContext, canvas, {
@@ -69,7 +69,7 @@ class ButterchurnVisualizer extends Visualizer {
     this.visualizer.connectAudio(audioNode);
 
     // Start animation request loop. Do not use setInterval!
-    this.animFrameHandle = requestAnimationFrame(renderVisualizer);
+    this.stopAnimation = animateVisualizer(canvas, renderVisualizer);
   }
 
   resize(width: number, height: number) {
@@ -77,7 +77,9 @@ class ButterchurnVisualizer extends Visualizer {
   }
 
   destroy() {
-    if (this.animFrameHandle) cancelAnimationFrame(this.animFrameHandle);
+    this.stopAnimation();
+    this.visualizer.disconnectAudio(this.audioNode);
+    this.audioNode.disconnect();
     this.destroyed = true;
     try {
       this.audioSource.disconnect(this.audioNode);

@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 44c99538f57ea6c43e64e465a0501701ffb2d1dc
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Organize preferences, synchronize pins and add free steering")
+          test "$(git rev-parse HEAD^)" = df3bf1b0d96e0d9679972844248995769a4ae93e
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Stop idle rendering and restore library and tray preferences")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -72,6 +72,7 @@ jobs:
           path: |
             test-results/spear-preferences.png
             test-results/spear-themes.png
+            test-results/spear-like-buttons.png
             test-results/spear-tray.png
             test-results/spear-update.png
             test-results/spear-pulsefield.png

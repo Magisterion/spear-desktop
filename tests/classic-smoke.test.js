@@ -132,7 +132,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       0,
     );
     await expect(
-      settings.getByText('Version 3.12.16', { exact: true }),
+      settings.getByText('Version 3.12.17', { exact: true }),
     ).toBeVisible();
     const pin = settings.getByLabel('Always on top', { exact: true });
     const pinButton = player.locator(
@@ -151,6 +151,84 @@ test('Spear preferences use local IPC and portable data', async () => {
       .allTextContents();
     expect(labels[0]).toContain('Language');
     expect(labels[1]).toContain('Starting page');
+    await expect(
+      settings.getByLabel(
+        'Single click: play/pause; double click: show window (off swaps actions)',
+        { exact: true },
+      ),
+    ).not.toBeChecked();
+    await expect(
+      settings.getByRole('heading', {
+        name: 'Compatibility & maintenance',
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await settings
+      .getByRole('button', { name: 'Compatibility & maintenance', exact: true })
+      .click();
+    await expect(settings.locator('#content details')).toHaveCount(0);
+    await expect(
+      settings.getByRole('heading', {
+        name: 'Compatibility & maintenance',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await settings
+      .getByRole('button', { name: 'Like buttons', exact: true })
+      .click();
+    await expect(settings.locator('#content details')).toHaveCount(0);
+    await expect(settings.locator('#content input[type="radio"]')).toHaveCount(
+      3,
+    );
+    await settings.screenshot({
+      path: path.join(root, 'test-results/spear-like-buttons.png'),
+    });
+    await settings
+      .getByRole('button', { name: 'Appearance', exact: true })
+      .click();
+    await settings.getByLabel('Remove upgrade button', { exact: true }).check();
+    // Exercise the missing-icon fallback without YouTube custom-element upgrades replacing the fixture.
+    await player.evaluate(() => {
+      document.querySelector('iron-iconset-svg[name="yt-sys-icons"]')?.remove();
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((w) =>
+          w.webContents.getURL().startsWith('https://music.youtube.com'),
+        )
+        .webContents.send('classic:appearance');
+    });
+    await expect
+      .poll(() =>
+        player.evaluate(
+          () => document.getElementById('spear-upgrade-style')?.textContent,
+        ),
+      )
+      .toContain('/music_premium');
+    const styles = await player.evaluate(
+      () => document.getElementById('spear-upgrade-style').textContent,
+    );
+    const fixtureOpened = app.waitForEvent('window');
+    const fixture = await app.evaluate(({ BrowserWindow }) => {
+      const win = new BrowserWindow({ show: false });
+      win.loadURL('about:blank');
+      return win.id;
+    });
+    const fixturePage = await fixtureOpened;
+    await fixturePage.waitForLoadState();
+    await fixturePage.setContent(
+      '<style>' +
+        styles +
+        '</style><ytmusic-guide-section-renderer><div id="items"><ytmusic-guide-entry-renderer><a href="/music_premium">Premium</a></ytmusic-guide-entry-renderer><ytmusic-guide-entry-renderer id="spear-library-test"><a href="/library">Library</a></ytmusic-guide-entry-renderer></div></ytmusic-guide-section-renderer>',
+    );
+    await expect(fixturePage.locator('#spear-library-test')).toBeVisible();
+    await expect(
+      fixturePage.locator('a[href="/music_premium"]'),
+    ).not.toBeVisible();
+    await app.evaluate(
+      ({ BrowserWindow }, id) => BrowserWindow.fromId(id).destroy(),
+      fixture,
+    );
     // Native navigation must route within the existing page, retaining its media state.
     await player.evaluate(() => {
       const app = document.querySelector('ytmusic-app');
@@ -295,13 +373,26 @@ test('Spear preferences use local IPC and portable data', async () => {
     }, fixturePath);
     const layout = await localWindow(app, 'compact-fixture');
     await layout.waitForLoadState('domcontentloaded');
+    await layout.evaluate(() => {
+      window.ipcRenderer = {
+        on: () => {},
+        invoke: async () => ({ visible: true, speakers: false }),
+      };
+    });
+    await layout.addScriptTag({
+      content: stripTypeScriptTypes(
+        await fs.readFile(path.join(root, 'src/classic/activity.ts'), 'utf8'),
+      ).replaceAll('export ', ''),
+    });
     await layout.addScriptTag({
       content: stripTypeScriptTypes(
         await fs.readFile(
           path.join(root, 'src/plugins/visualizer/stage.ts'),
           'utf8',
         ),
-      ).replaceAll('export ', ''),
+      )
+        .replace(/import[^;]+;/g, '')
+        .replaceAll('export ', ''),
     });
     await layout.evaluate(() => {
       window.stage = createVisualizerStage();
@@ -541,15 +632,25 @@ test('Spear preferences use local IPC and portable data', async () => {
           window.gameListeners[channel] = callback;
         },
         send: (channel, value) => {
-          if (channel === 'classic:audio-level') window.audioLevel = value;
+          if (channel === 'classic:audio-level') {
+            window.audioLevel = value;
+            window.audioMessages = (window.audioMessages || 0) + 1;
+          }
         },
-        invoke: async () => {},
+        invoke: async () => ({ visible: true, speakers: true }),
       };
     });
     await game.addScriptTag({
       content: stripTypeScriptTypes(
-        await fs.readFile(path.join(root, 'src/classic/audio.ts'), 'utf8'),
+        await fs.readFile(path.join(root, 'src/classic/activity.ts'), 'utf8'),
       ).replaceAll('export ', ''),
+    });
+    await game.addScriptTag({
+      content: stripTypeScriptTypes(
+        await fs.readFile(path.join(root, 'src/classic/audio.ts'), 'utf8'),
+      )
+        .replace(/import[^;]+;/g, '')
+        .replaceAll('export ', ''),
     });
     await game.addScriptTag({
       content: stripTypeScriptTypes(
@@ -651,6 +752,54 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect.poll(rms).toBeLessThan(0.15);
     await game.evaluate(() => setEqualizer(Array(10).fill(0), true));
     await expect.poll(rms).toBeGreaterThan(0.24);
+    // Rendering and FFT telemetry stop without stopping background music.
+    await game.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      document.body.append(canvas);
+      window.renderFrames = 0;
+      window.stopRenderProbe = animateVisualizer(
+        canvas,
+        () => window.renderFrames++,
+      );
+    });
+    await expect
+      .poll(() => game.evaluate(() => window.renderFrames))
+      .toBeGreaterThan(2);
+    await game.evaluate(() =>
+      window.gameListeners['classic:activity'](null, {
+        visible: false,
+        speakers: false,
+      }),
+    );
+    const idle = await game.evaluate(() => [
+      window.renderFrames,
+      window.audioMessages,
+    ]);
+    await game.waitForTimeout(200);
+    expect(
+      await game.evaluate(() => [window.renderFrames, window.audioMessages]),
+    ).toEqual(idle);
+    await expect.poll(rms).toBeGreaterThan(0.24);
+    // A visible tray can sample audio while the main visualizer stays asleep.
+    await game.evaluate(() =>
+      window.gameListeners['classic:activity'](null, {
+        visible: false,
+        speakers: true,
+      }),
+    );
+    await expect
+      .poll(() => game.evaluate(() => window.audioLevel))
+      .toBeGreaterThan(0.4);
+    expect(await game.evaluate(() => window.renderFrames)).toBe(idle[0]);
+    await game.evaluate(() =>
+      window.gameListeners['classic:activity'](null, {
+        visible: true,
+        speakers: true,
+      }),
+    );
+    await expect
+      .poll(() => game.evaluate(() => window.renderFrames))
+      .toBeGreaterThan(idle[0]);
     await game.keyboard.press('r');
     await expect(game.locator('#score')).toContainText('0 pts');
     await game.evaluate(() => {
@@ -669,13 +818,28 @@ test('Spear preferences use local IPC and portable data', async () => {
     await game.screenshot({
       path: path.join(root, 'test-results/spear-pulsefield.png'),
     });
-    await game.evaluate(() =>
-      Object.defineProperty(document.querySelector('video'), 'paused', {
+    await game.evaluate(() => {
+      const video = document.querySelector('video');
+      Object.defineProperty(video, 'paused', {
         value: true,
         configurable: true,
-      }),
-    );
+      });
+      video.dispatchEvent(new Event('pause'));
+    });
     await expect.poll(() => game.evaluate(() => window.audioLevel)).toBe(0);
+    await expect
+      .poll(() => game.evaluate(() => window.outputMeter.context.state))
+      .toBe('suspended');
+    const paused = await game.evaluate(() => [
+      window.renderFrames,
+      window.audioMessages,
+    ]);
+    await game.waitForTimeout(200);
+    expect(
+      await game.evaluate(() => [window.renderFrames, window.audioMessages]),
+    ).toEqual(paused);
+    await game.evaluate(() => window.stopRenderProbe());
+
     await game.keyboard.press('Escape');
     await expect(game.locator('#spear-pulsefield')).toHaveCount(0);
     await game.evaluate(() => window.gameListeners['classic:game']());

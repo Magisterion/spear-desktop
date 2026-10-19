@@ -33,7 +33,7 @@ export default createPlugin({
   restartNeeded: false,
   config: {
     enabled: true,
-    ratio: 0.5,
+    ratio: 0.3,
     enableSeekbar: true,
   } satisfies Config as Config,
   stylesheets: [style],
@@ -173,11 +173,11 @@ export default createPlugin({
     ) {
       const keyColor = `rgba(var(${key}), ${alpha})`;
 
-      let colorRatio = `var(${RATIO_KEY}, 50%)`;
-      let originalRatio = `calc(100% - var(${RATIO_KEY}, 50%))`;
+      let colorRatio = `var(${RATIO_KEY}, 30%)`;
+      let originalRatio = `calc(100% - var(${RATIO_KEY}, 30%))`;
       if (ratioMultiply) {
-        colorRatio = `calc(var(${RATIO_KEY}, 50%) * ${ratioMultiply})`;
-        originalRatio = `calc(100% - calc(var(${RATIO_KEY}, 50%) * ${ratioMultiply}))`;
+        colorRatio = `calc(var(${RATIO_KEY}, 30%) * ${ratioMultiply})`;
+        originalRatio = `calc(100% - calc(var(${RATIO_KEY}, 30%) * ${ratioMultiply}))`;
       }
       return `color-mix(in srgb, ${color} ${originalRatio}, ${keyColor} ${colorRatio})`;
     },

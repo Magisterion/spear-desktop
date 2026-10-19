@@ -1,3 +1,4 @@
+import { activity, onActivityChange } from './activity';
 /** One audible path; analysers never add a second copy of the music. */
 export const frequencies = [
   31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000,
@@ -30,6 +31,7 @@ export function setGameAudioDelay(seconds: number) {
 let gains = frequencies.map(() => 0);
 let enabled = true;
 let sampleTimer: ReturnType<typeof setInterval> | undefined;
+let cleanup: (() => void) | undefined;
 let lastBeat = 0;
 let baseline = 0;
 export function setEqualizer(values: number[], on = true) {
@@ -53,6 +55,7 @@ export function initializeAudio(
   source: MediaElementAudioSourceNode,
   video: HTMLVideoElement,
 ) {
+  cleanup?.();
   input?.disconnect();
   filters.forEach((f) => f.disconnect());
   delay?.disconnect();
@@ -89,14 +92,7 @@ export function initializeAudio(
   silent.connect(ctx.destination);
   const spectrum = new Uint8Array(analyser.frequencyBinCount);
   const waveform = new Uint8Array(analyser.fftSize);
-  const resume = () => {
-    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
-  };
-  video.addEventListener('playing', resume);
-  document.addEventListener('pointerdown', resume, { passive: true });
-  resume();
-  if (sampleTimer) clearInterval(sampleTimer);
-  sampleTimer = setInterval(() => {
+  const sample = () => {
     const active = !video.paused && !video.ended && ctx.state === 'running';
     audioMotion.active = active;
     audioMotion.time = ctx.currentTime;
@@ -139,14 +135,46 @@ export function initializeAudio(
     } else {
       audioMotion.bass = audioMotion.energy = audioMotion.high = baseline = 0;
     }
-    window.ipcRenderer.send(
-      'classic:audio-level',
-      Math.min(
-        1,
-        Math.max(0, audioMotion.bass - baseline * 0.7) * 3 +
-          audioMotion.energy * 0.15,
-      ),
-    );
-  }, 40);
+    if (activity.speakers)
+      window.ipcRenderer.send(
+        'classic:audio-level',
+        Math.min(
+          1,
+          Math.max(0, audioMotion.bass - baseline * 0.7) * 3 +
+            audioMotion.energy * 0.15,
+        ),
+      );
+  };
+  const sync = () => {
+    clearInterval(sampleTimer);
+    sampleTimer = undefined;
+    const playing = !video.paused && !video.ended;
+    if (playing) {
+      if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
+      if (activity.visible || activity.speakers) {
+        sample();
+        sampleTimer = setInterval(sample, 40);
+      }
+    } else {
+      if (ctx.state === 'running') void ctx.suspend().catch(() => {});
+    }
+    if (!playing || (!activity.visible && !activity.speakers)) {
+      audioMotion.active = false;
+      audioMotion.bass = audioMotion.energy = audioMotion.high = baseline = 0;
+      window.ipcRenderer.send('classic:audio-level', 0);
+    }
+  };
+  const events = ['play', 'playing', 'pause', 'ended', 'emptied'];
+  events.forEach((event) => video.addEventListener(event, sync));
+  const off = onActivityChange(sync);
+  cleanup = () => {
+    clearInterval(sampleTimer);
+    off();
+    events.forEach((event) => video.removeEventListener(event, sync));
+    analyser.disconnect();
+    silent.disconnect();
+    output.disconnect();
+  };
+  sync();
   return output;
 }

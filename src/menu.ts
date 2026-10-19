@@ -253,6 +253,7 @@ export const mainMenuTemplate = async (
               },
             },
             {
+              id: 'classic-like-buttons',
               label: t(
                 'main.menu.options.submenu.visual-tweaks.submenu.like-buttons.label',
               ),
