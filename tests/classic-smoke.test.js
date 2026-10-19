@@ -106,6 +106,14 @@ test('Spear preferences use local IPC and portable data', async () => {
       }),
     ).toBeVisible();
     await settings.getByRole('button', { name: 'Themes', exact: true }).click();
+    await expect(settings.locator('#content article').last()).toContainText(
+      'Album color theme',
+    );
+    await expect(
+      settings
+        .locator('#nav')
+        .getByRole('button', { name: 'Album colors', exact: true }),
+    ).toHaveCount(0);
     await settings
       .getByRole('button', { name: 'Amber display', exact: true })
       .click();
@@ -132,7 +140,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       0,
     );
     await expect(
-      settings.getByText('Version 3.12.19', { exact: true }),
+      settings.getByText('Version 3.12.20', { exact: true }),
     ).toBeVisible();
     const pin = settings.getByLabel('Always on top', { exact: true });
     const pinButton = player.locator(
@@ -174,12 +182,19 @@ test('Spear preferences use local IPC and portable data', async () => {
       }),
     ).toBeVisible();
     await settings
-      .getByRole('button', { name: 'Like buttons', exact: true })
+      .getByRole('button', { name: 'Appearance', exact: true })
       .click();
     await expect(settings.locator('#content details')).toHaveCount(0);
-    await expect(settings.locator('#content input[type="radio"]')).toHaveCount(
-      3,
-    );
+    const likes = settings.locator('#content article').filter({
+      has: settings.getByRole('heading', { name: 'Like buttons', exact: true }),
+    });
+    await expect(likes).toBeVisible();
+    await expect(likes.locator('input[type="radio"]')).toHaveCount(3);
+    await expect(
+      settings
+        .locator('#nav')
+        .getByRole('button', { name: 'Like buttons', exact: true }),
+    ).toHaveCount(0);
     await settings.screenshot({
       path: path.join(root, 'test-results/spear-like-buttons.png'),
     });

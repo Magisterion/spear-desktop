@@ -25,7 +25,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     slow: 0,
     charge: 0,
     cooldown: 0,
-    speed: 0.2,
+    speed: 0.3,
     energy: 0,
     time: 0,
     distance: 0,
@@ -68,7 +68,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     o.done = true;
     run.combo++;
     run.score +=
-      (o.radius < 24 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
+      (o.radius < 48 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
     run.best = Math.max(run.best, run.score);
     run.mass = Math.min(16, run.mass + 0.21);
     burst(o.x, o.y);
@@ -124,7 +124,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     run.objects.push({
       x,
       y: -0.06,
-      radius: complex ? 18 + (i % 3) * 3 : 30 + (i % 3) * 4,
+      radius: complex ? 36 + (i % 3) * 6 : 60 + (i % 3) * 8,
       hue: 160 + band * 45,
       sides: complex ? 5 : 3 + (i % 4),
       hazard: false,
@@ -133,9 +133,9 @@ export function createCollector(onPulse: () => void = () => {}) {
     // Red mines are separate, clearly marked, and never occupy a collectible's path.
     if (i > 5 && i % (complex ? 5 : 9) === 0)
       run.objects.push({
-        x: clamp(x + (x > 0.5 ? -0.24 : 0.24), 0.08, 0.92),
+        x: clamp(x + (x > 0.5 ? -0.32 : 0.32), 0.08, 0.92),
         y: -0.12,
-        radius: 27,
+        radius: 54,
         hue: 0,
         sides: 8,
         hazard: true,
@@ -145,7 +145,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       run.objects.push({
         x: clamp(x + 0.12, 0.08, 0.92),
         y: -0.1,
-        radius: 17,
+        radius: 34,
         hue: 280,
         sides: 3,
         hazard: false,
@@ -167,7 +167,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       slow: 0,
       charge: 0,
       cooldown: 0,
-      speed: 0.2,
+      speed: 0.3,
       energy: 0,
       time: 0,
       distance: 0,
@@ -198,7 +198,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     run.energy +=
       (clamp(energy * 2, 0, 1) - run.energy) * (1 - Math.exp(-dt * 1.4));
     const speed =
-      ((0.22 * clamp(bpm, 70, 170)) / 108) *
+      ((0.33 * clamp(bpm, 70, 170)) / 108) *
       (1 + run.energy * 0.42) *
       (run.slow > 0 ? 0.45 + 0.55 * (1 - run.slow / 2.4) : 1);
     run.speed += (speed - run.speed) * (1 - Math.exp(-dt * 2));

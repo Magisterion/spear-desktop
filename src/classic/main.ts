@@ -156,7 +156,7 @@ export function showTrayPopup(win: BrowserWindow) {
 }
 
 function category(id: string) {
-  if (id === 'album-color-theme') return 'Album colors';
+  if (id === 'album-color-theme') return 'Themes';
   if (id === 'visualizer') return 'Visualizers';
   if (id === 'equalizer') return 'Equalizer';
   if (id === 'keep-listening') return 'Playback & tools';

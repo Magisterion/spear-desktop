@@ -233,9 +233,7 @@
       const categories = [
         'General',
         'Appearance',
-        'Like buttons',
         'Themes',
-        'Album colors',
         'Visualizers',
         'Equalizer',
         'Audio',
@@ -442,19 +440,6 @@
             .forEach((c) => control(c, a));
           if (a.children.length > 1) content.append(a);
         }
-        if (tab === 'Like buttons' || query) {
-          const a = el('article');
-          a.append(el('h2', 'Like buttons'));
-          data.appearance
-            .flatMap((c) => c.children || [c])
-            .filter((c) => c.menuId === 'classic-like-buttons')
-            .flatMap((c) => c.children || [])
-            .filter(
-              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
-            )
-            .forEach((c) => control(c, a));
-          if (a.children.length > 1) content.append(a);
-        }
         if (tab === 'Themes' && !query) {
           const a = el('article');
           a.append(el('h2', 'Theme'));
@@ -533,6 +518,19 @@
             )
             .forEach((c) => control(c, a));
           content.append(a);
+        }
+        if (tab === 'Appearance' || query) {
+          const a = el('article');
+          a.append(el('h2', 'Like buttons'));
+          data.appearance
+            .flatMap((c) => c.children || [c])
+            .filter((c) => c.menuId === 'classic-like-buttons')
+            .flatMap((c) => c.children || [])
+            .filter(
+              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
+            )
+            .forEach((c) => control(c, a));
+          if (a.children.length > 1) content.append(a);
         }
         if (tab === 'About' && !query) {
           const a = el('article');
