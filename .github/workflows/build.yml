@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 16e99dbec09daee7ce3c83002e87c211d2ef5fd2
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Add Stardrift collector and fix tray and fullscreen interactions")
+          test "$(git rev-parse HEAD^)" = c4a88ccedcc962a3dabc4f45ec586cde5fe07694
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Apply the requested tray default after older migrations")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
