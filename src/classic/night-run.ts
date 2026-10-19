@@ -32,7 +32,7 @@ function openGame() {
   score.id = 'score';
   const footer = document.createElement('footer');
   footer.textContent =
-    'Mouse / arrows: move · Hold LMB / Space, release: pulse · Red mines damage · R: restart · Esc: return ';
+    'Mouse / arrows: move · Hold LMB / Space, release: pulse · Core hits explode; trails clear mines · R: restart · Esc: return ';
   const meter = document.createElement('progress');
   meter.max = 1;
   meter.setAttribute('aria-label', 'Music pulse');
@@ -82,7 +82,8 @@ function openGame() {
     lastTrack = '',
     lastMediaTime = 0,
     pulse = 0,
-    lastSpawnTime = -1;
+    lastSpawnTime = -1,
+    spawnClock = 0;
   const resize = new ResizeObserver(() => {
     const rect = host.getBoundingClientRect();
     width = Math.max(320, rect.width);
@@ -183,6 +184,8 @@ function openGame() {
     document.removeEventListener('play', wake, true);
     document.removeEventListener('pause', wake, true);
     document.removeEventListener('ended', wake, true);
+    for (const event of ['playing', 'loadeddata', 'timeupdate', 'emptied'])
+      document.removeEventListener(event, mediaWake, true);
     resize.disconnect();
     window.removeEventListener('pointerup', pointerUp);
     for (const oscillator of effects) {
@@ -242,7 +245,7 @@ function openGame() {
       drive.reset();
       lastTrack = track;
       lastBeat = audioMotion.beat;
-      lastSpawnTime = -1;
+      ((lastSpawnTime = -1), (spawnClock = 0));
     }
     lastMediaTime = video?.currentTime ?? 0;
     const active =
@@ -250,7 +253,10 @@ function openGame() {
       (audioMotion.active ||
         !!(video && !video.paused && !video.ended && video.readyState >= 2));
     const beatInterval = 60 / Math.max(60, Math.min(180, audioMotion.bpm));
-    const musicTime = video?.currentTime || audioMotion.time;
+    // A track starts at media time zero while the AudioContext clock keeps running.
+    // Never mix those clocks: doing so stalls spawning until the song catches up.
+    if (active) spawnClock += dt;
+    const musicTime = spawnClock;
     const onset = audioMotion.beat !== lastBeat;
     // Sustained music may have no bass onsets. Continue the last detected tempo
     // on the media clock, with colors from the live spectrum, instead of an empty road.
@@ -270,7 +276,7 @@ function openGame() {
     status.textContent = active
       ? track || 'Stardrift'
       : 'Play music to bring the track to life';
-    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 15))} · ${run.respawn > 0 ? 'Reforming…' : 'Core ' + run.mass.toFixed(1)} · ${run.cooldown > 0 ? 'Pulse ' + run.cooldown.toFixed(1) + 's' : 'Charge ' + Math.round(run.charge * 100) + '%'}`;
+    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 15))} · ${run.respawn > 0 ? 'Reforming…' : 'Trails ' + drive.trailCount()} · ${run.cooldown > 0 ? 'Pulse ' + run.cooldown.toFixed(1) + 's' : 'Charge ' + Math.round(run.charge * 100) + '%'}`;
     meter.value = Math.max(audioMotion.bass, audioMotion.energy);
     pulse = Math.max(0, pulse - dt * 3);
     ctx.fillStyle = '#090b17';
@@ -338,6 +344,9 @@ function openGame() {
     lastTime = performance.now();
     raf = requestAnimationFrame(frame);
   };
+  const mediaWake = () => {
+    if (!raf) wake();
+  };
   cover.onload = wake;
   const artworkObserver = new MutationObserver(() => {
     nextArtworkCheck = 0;
@@ -356,6 +365,8 @@ function openGame() {
   document.addEventListener('play', wake, true);
   document.addEventListener('pause', wake, true);
   document.addEventListener('ended', wake, true);
+  for (const event of ['playing', 'loadeddata', 'timeupdate', 'emptied'])
+    document.addEventListener(event, mediaWake, true);
   wake();
 }
 window.ipcRenderer.on('classic:game', openGame);

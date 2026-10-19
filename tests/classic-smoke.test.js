@@ -140,7 +140,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       0,
     );
     await expect(
-      settings.getByText('Version 3.12.20', { exact: true }),
+      settings.getByText('Version 3.12.21', { exact: true }),
     ).toBeVisible();
     const pin = settings.getByLabel('Always on top', { exact: true });
     const pinButton = player.locator(
@@ -681,6 +681,14 @@ test('Spear preferences use local IPC and portable data', async () => {
         await fs.readFile(path.join(root, 'src/classic/night-run.ts'), 'utf8'),
       ).replace(/import[^;]+;/g, ''),
     });
+    await game.evaluate(() => {
+      const original = createCollector;
+      createCollector = (...args) => {
+        const collector = original(...args);
+        window.testCollector = collector;
+        return collector;
+      };
+    });
     await game.evaluate(() => window.gameListeners['classic:game']());
     await expect(
       game.getByText('Play music to bring the track to life'),
@@ -835,6 +843,31 @@ test('Spear preferences use local IPC and portable data', async () => {
       audioMotion.beat++;
     });
 
+    // Reproduce a new song starting at zero while the audio clock is much older.
+    await game.evaluate(() => {
+      const video = document.querySelector('video');
+      window.testMediaTime = 0;
+      Object.defineProperty(video, 'currentTime', {
+        configurable: true,
+        get: () => window.testMediaTime,
+      });
+      audioMotion.time = 10000;
+      const bar = document.querySelector('ytmusic-player-bar');
+      const title = document.createElement('span');
+      title.className = 'title';
+      title.textContent = 'Next track';
+      bar.append(title);
+      video.dispatchEvent(new Event('loadeddata'));
+    });
+    await expect(game.locator('#status')).toHaveText('Next track');
+    await game.evaluate(() => {
+      window.testMediaTime = 0.1;
+    });
+    await expect
+      .poll(() => game.evaluate(() => window.testCollector.run.sequence), {
+        timeout: 5000,
+      })
+      .toBeGreaterThan(3);
     await game.screenshot({
       path: path.join(root, 'test-results/spear-pulsefield.png'),
     });
@@ -1288,13 +1321,35 @@ test('Stardrift collects with its trail, clears mines, penalizes misses and refo
   expect(r.mass).toBeGreaterThan(3);
   r.waves = [];
   r.invulnerable = 0;
-  r.mass = 2;
+  r.mass = 16;
+  r.gathered = 100;
+  expect(game.trailCount()).toBe(3);
+  const scoreBeforeCrash = r.score;
   r.objects.push(shape(r.x, r.y, true));
   game.step(0.01, true, 120, 0.1, false);
   expect(r.respawn).toBeGreaterThan(0);
   for (let i = 0; i < 140; i++) game.step(0.016, true, 120, 0.1, false);
   expect(r.mass).toBe(3);
-  expect(r.score).toBe(0);
+  expect(r.score).toBe(scoreBeforeCrash);
+  expect(r.gathered).toBe(0);
+  expect(game.trailCount()).toBe(1);
+  expect(game.trailLife()).toBeCloseTo(0.22);
+  expect(r.y).toBeCloseTo(0.86);
+  expect(r.invulnerable).toBeGreaterThan(0);
+  r.tail = [
+    { x: 0.2, y: 0.4, age: 0.1 },
+    { x: 0.2, y: 0.5, age: 0 },
+  ];
+  r.objects.push(shape(0.2, 0.45, true));
+  game.step(0.001, true, 120, 0.1, false);
+  expect(r.objects).toHaveLength(0);
+  expect(r.respawn).toBe(0);
+  for (let i = 0; i < 50; i++) {
+    r.objects.push(shape(r.x, r.y));
+    game.step(0.001, true, 120, 0.1, false);
+  }
+  expect(game.trailCount()).toBe(2);
+  expect(game.trailLife()).toBeGreaterThan(2);
   const distance = r.distance;
   game.step(0.5, false, 120, 0.1, false);
   expect(r.distance).toBe(distance);

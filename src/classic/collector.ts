@@ -20,6 +20,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     best: 0,
     mass: 3,
     combo: 0,
+    gathered: 0,
     invulnerable: 0,
     respawn: 0,
     slow: 0,
@@ -41,6 +42,15 @@ export function createCollector(onPulse: () => void = () => {}) {
   const clamp = (v: number, a: number, b: number) =>
     Math.max(a, Math.min(b, v));
   const radius = () => 6 + Math.sqrt(run.mass) * 3;
+  const trailLife = () => Math.min(2.4, 0.22 + run.gathered * 0.045);
+  const trailCount = () => Math.min(3, 1 + Math.floor(run.gathered / 50));
+  const trailPoint = (p: Tail, branch: number): Point => ({
+    x:
+      p.x +
+      (branch === 0 ? 0 : branch === 1 ? -1 : 1) *
+        Math.min(0.065, p.age * 0.065),
+    y: p.y,
+  });
   function burst(x: number, y: number, red = false, count = 12) {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2,
@@ -57,7 +67,10 @@ export function createCollector(onPulse: () => void = () => {}) {
   }
   function die() {
     burst(run.x, run.y, true, 55);
-    run.respawn = 2;
+    run.respawn = 1.1;
+    run.gathered = 0;
+    run.combo = 0;
+    run.waves = [];
     run.mass = 0;
     run.charge = 0;
     run.held = false;
@@ -67,8 +80,9 @@ export function createCollector(onPulse: () => void = () => {}) {
     if (o.done) return;
     o.done = true;
     run.combo++;
+    run.gathered++;
     run.score +=
-      (o.radius < 48 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
+      (o.radius < 58 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
     run.best = Math.max(run.best, run.score);
     run.mass = Math.min(16, run.mass + 0.21);
     burst(o.x, o.y);
@@ -77,12 +91,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     o.done = true;
     burst(o.x, o.y, true, 35);
     if (run.invulnerable > 0 || run.respawn > 0) return;
-    run.mass = Math.max(0, run.mass - 2.5);
-    run.score = Math.max(0, run.score - 40);
-    run.combo = 0;
-    run.slow = 2.4;
-    run.invulnerable = 2;
-    if (!run.mass) die();
+    die();
   }
   function release() {
     if (run.respawn || run.cooldown || run.charge < 0.12) {
@@ -124,7 +133,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     run.objects.push({
       x,
       y: -0.06,
-      radius: complex ? 36 + (i % 3) * 6 : 60 + (i % 3) * 8,
+      radius: complex ? 43 + (i % 3) * 7 : 72 + (i % 3) * 10,
       hue: 160 + band * 45,
       sides: complex ? 5 : 3 + (i % 4),
       hazard: false,
@@ -135,7 +144,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       run.objects.push({
         x: clamp(x + (x > 0.5 ? -0.32 : 0.32), 0.08, 0.92),
         y: -0.12,
-        radius: 54,
+        radius: 65,
         hue: 0,
         sides: 8,
         hazard: true,
@@ -145,7 +154,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       run.objects.push({
         x: clamp(x + 0.12, 0.08, 0.92),
         y: -0.1,
-        radius: 34,
+        radius: 41,
         hue: 280,
         sides: 3,
         hazard: false,
@@ -162,6 +171,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       score: 0,
       mass: 3,
       combo: 0,
+      gathered: 0,
       invulnerable: 1.5,
       respawn: 0,
       slow: 0,
@@ -210,7 +220,8 @@ export function createCollector(onPulse: () => void = () => {}) {
       if (run.respawn <= 0) {
         run.respawn = 0;
         run.mass = 3;
-        run.score = 0;
+        run.x = run.targetX = 0.5;
+        run.y = run.targetY = 0.86;
         run.combo = 0;
         run.invulnerable = 2;
         run.tail = [];
@@ -227,6 +238,14 @@ export function createCollector(onPulse: () => void = () => {}) {
       o.y += run.speed * dt;
       o.angle += dt * 0.45;
       if (!run.respawn) {
+        if (
+          !o.done &&
+          Math.hypot((o.x - run.x) * width, (o.y - run.y) * height) <
+            o.radius * 0.75 + radius()
+        ) {
+          if (o.hazard) hit(o);
+          else collect(o);
+        }
         for (const w of run.waves)
           if (
             Math.hypot((o.x - w.x) * width, (o.y - w.y) * height) <
@@ -238,24 +257,20 @@ export function createCollector(onPulse: () => void = () => {}) {
             } else collect(o);
             break;
           }
-        if (
-          !o.done &&
-          Math.hypot((o.x - run.x) * width, (o.y - run.y) * height) <
-            o.radius * 0.75 + radius()
-        ) {
-          if (o.hazard) hit(o);
-          else collect(o);
-        }
-        // The trail collects shapes, but does not make the player vulnerable to mines.
-        if (!o.done && !o.hazard)
-          for (let i = 1; i < run.tail.length; i++) {
-            const a = run.tail[i - 1],
-              b = run.tail[i];
-            if (tailDistance(o, a, b) < o.radius * 0.7 + 3 + run.mass * 0.3) {
-              collect(o);
-              break;
+        // Every visible branch collects colors and safely detonates red mines.
+        if (!o.done && !run.respawn)
+          for (let branch = 0; branch < trailCount() && !o.done; branch++)
+            for (let i = 1; i < run.tail.length; i++) {
+              const a = trailPoint(run.tail[i - 1], branch),
+                b = trailPoint(run.tail[i], branch);
+              if (tailDistance(o, a, b) < o.radius * 0.7 + 3 + run.mass * 0.3) {
+                if (o.hazard) {
+                  o.done = true;
+                  burst(o.x, o.y, true, 35);
+                } else collect(o);
+                break;
+              }
             }
-          }
       }
       if (!o.done && o.y - o.radius / height > 1) {
         o.done = true;
@@ -273,9 +288,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       k.y += run.speed * dt * 0.85;
     }
     if (!run.respawn) run.tail.push({ x: run.x, y: run.y, age: 0 });
-    run.tail = run.tail
-      .filter((k) => k.age < 1.1 + run.mass * 0.07 + run.energy * 0.8)
-      .slice(-180);
+    run.tail = run.tail.filter((k) => k.age < trailLife()).slice(-180);
     for (const k of run.particles) {
       k.x += k.vx * dt;
       k.y += k.vy * dt;
@@ -336,21 +349,20 @@ export function createCollector(onPulse: () => void = () => {}) {
       ctx.restore();
     }
     ctx.lineCap = 'round';
-    for (let i = 1; i < run.tail.length; i++) {
-      const a = run.tail[i - 1],
-        b = run.tail[i],
-        alpha = clamp(
-          1 - b.age / (1.1 + run.mass * 0.07 + run.energy * 0.8),
-          0,
-          1,
-        );
-      for (const glow of [true, false]) {
-        ctx.beginPath();
-        ctx.moveTo(a.x * w, a.y * h);
-        ctx.lineTo(b.x * w, b.y * h);
-        ctx.lineWidth = (2 + run.mass * 0.35 + run.energy * 3) * (glow ? 4 : 1);
-        ctx.strokeStyle = `hsla(${170 + run.energy * 65},85%,75%,${alpha * (glow ? 0.1 : 0.8)})`;
-        ctx.stroke();
+    for (let branch = 0; branch < trailCount(); branch++) {
+      for (let i = 1; i < run.tail.length; i++) {
+        const a = trailPoint(run.tail[i - 1], branch),
+          b = trailPoint(run.tail[i], branch),
+          alpha = clamp(1 - run.tail[i].age / trailLife(), 0, 1);
+        for (const glow of [true, false]) {
+          ctx.beginPath();
+          ctx.moveTo(a.x * w, a.y * h);
+          ctx.lineTo(b.x * w, b.y * h);
+          ctx.lineWidth =
+            (2 + run.mass * 0.35 + run.energy * 3) * (glow ? 4 : 1);
+          ctx.strokeStyle = `hsla(${170 + Math.floor(run.gathered / 25) * 35 + branch * 65},85%,75%,${alpha * (glow ? 0.1 : 0.8)})`;
+          ctx.stroke();
+        }
       }
     }
     for (const wave of run.waves) {
@@ -402,5 +414,5 @@ export function createCollector(onPulse: () => void = () => {}) {
     }
   }
   reset();
-  return { run, reset, beat, step, draw };
+  return { run, reset, beat, step, draw, trailCount, trailLife };
 }
