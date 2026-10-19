@@ -8,6 +8,7 @@ export function createVisualizerStage() {
     document.body.append(stage);
   }
   const container = stage;
+  let mountedPlayer: Element | null = null;
   let media = false;
   const cover = document.createElement('img');
   cover.className = 'spear-visualizer-cover';
@@ -23,21 +24,20 @@ export function createVisualizerStage() {
     if (document.fullscreenElement === container) return;
     const player = document.querySelector('ytmusic-player');
     const playerState = player?.getAttribute('player-ui-state');
+    // Use Music's actual media box, including its native mini-player geometry.
+    // The overlay never participates in page layout or moves the media node.
+    if (mountedPlayer !== player) {
+      mountedPlayer?.classList.remove('spear-visualizer-active');
+      mountedPlayer = player;
+      if (player) player.append(container);
+    }
     container.hidden =
-      playerState === 'INACTIVE' || playerState === 'PLAYER_BAR_ONLY';
-    const panel = document.querySelector<HTMLElement>(
-      'ytmusic-player-page #main-panel',
-    );
-    const page = document.querySelector<HTMLElement>('ytmusic-player-page');
-    const expanded =
-      player?.getAttribute('player-ui-state') !== 'MINIPLAYER' &&
-      !!panel &&
-      !!page &&
-      page.getBoundingClientRect().width > 0 &&
-      panel.getBoundingClientRect().width > 0;
-    const parent = expanded ? panel! : document.body;
-    if (container.parentElement !== parent) parent.prepend(container);
+      !player ||
+      playerState === 'INACTIVE' ||
+      playerState === 'PLAYER_BAR_ONLY';
+    const expanded = playerState !== 'MINIPLAYER';
     container.classList.toggle('mini', !expanded);
+    player?.classList.toggle('spear-visualizer-active', !media);
     const action = container.querySelector<HTMLButtonElement>('.player-action');
     if (action) {
       action.title = expanded ? 'Minimize player' : 'Open player';
@@ -71,9 +71,11 @@ export function createVisualizerStage() {
         .querySelector('button[aria-pressed]')
         ?.setAttribute('aria-pressed', 'true');
       document.documentElement.classList.remove('spear-show-media');
+      mountedPlayer?.classList.add('spear-visualizer-active');
     },
     dispose() {
       clearInterval(timer);
+      mountedPlayer?.classList.remove('spear-visualizer-active');
       container.remove();
       document.documentElement.classList.remove(
         'spear-has-visualizer',

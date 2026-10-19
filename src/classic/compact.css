@@ -1,17 +1,10 @@
-/* The expanded YouTube drawer must start below the native app title bar. */
-ytmusic-app #guide-wrapper:not(tp-yt-app-drawer *),
-ytmusic-app tp-yt-app-drawer {
-  top: var(--menu-bar-height, 40px) !important;
-  bottom: 0 !important;
-  height: calc(100vh - var(--menu-bar-height, 40px)) !important;
-}
 @media (max-width: 900px) {
   /* Let YouTube reserve its own mini-guide space. Adding a second left
      margin or padding here shifts the entire queue off the right edge. */
   ytmusic-app-layout
     > ytmusic-player-page[slot='player-page']:has(#visualizer):not(
-      :has([player-ui-state='FULLSCREEN'])
-    ) {
+      :has([player-ui-state='MINIPLAYER'])
+    ):not(:has([player-ui-state='FULLSCREEN'])) {
     box-sizing: border-box;
     padding: 0 12px !important;
     margin-top: var(--menu-bar-height, 40px) !important;
@@ -19,14 +12,18 @@ ytmusic-app tp-yt-app-drawer {
     max-width: 100% !important;
     --ytmusic-player-page-video-height: 180px;
   }
-  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+  ytmusic-player-page:has(#visualizer):not(
+      :has([player-ui-state='MINIPLAYER'])
+    ):not(:has([player-ui-state='FULLSCREEN']))
     :is(#columns, #content.ytmusic-player-page) {
     display: flex !important;
     flex-direction: column !important;
     min-width: 0 !important;
     max-width: 100% !important;
   }
-  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+  ytmusic-player-page:has(#visualizer):not(
+      :has([player-ui-state='MINIPLAYER'])
+    ):not(:has([player-ui-state='FULLSCREEN']))
     #main-panel {
     box-sizing: border-box;
     padding: 0 !important;
@@ -39,7 +36,9 @@ ytmusic-app tp-yt-app-drawer {
     max-height: 180px !important;
     flex: 0 0 180px !important;
   }
-  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+  ytmusic-player-page:has(#visualizer):not(
+      :has([player-ui-state='MINIPLAYER'])
+    ):not(:has([player-ui-state='FULLSCREEN']))
     :is(#player, #player-container):not(:fullscreen) {
     box-sizing: border-box;
     height: 180px !important;
@@ -52,7 +51,9 @@ ytmusic-app tp-yt-app-drawer {
     aspect-ratio: auto !important;
     width: 100% !important;
   }
-  ytmusic-player-page:has(#visualizer):not(:has([player-ui-state='FULLSCREEN']))
+  ytmusic-player-page:has(#visualizer):not(
+      :has([player-ui-state='MINIPLAYER'])
+    ):not(:has([player-ui-state='FULLSCREEN']))
     #side-panel {
     box-sizing: border-box;
     margin: 8px 0 0 !important;
@@ -63,6 +64,34 @@ ytmusic-app tp-yt-app-drawer {
     width: 100% !important;
     max-width: 100% !important;
     flex: 1 1 auto !important;
+  }
+}
+@media (max-width: 900px) {
+  ytmusic-player-page:has(#visualizer)
+    ytmusic-player:not([player-ui-state='MINIPLAYER']):not(
+      [player-ui-state='FULLSCREEN']
+    )
+    :is(#song-image, #song-video) {
+    padding: 0 !important;
+    height: 180px !important;
+  }
+  ytmusic-player-page:has(#visualizer)
+    ytmusic-player:not([player-ui-state='MINIPLAYER']):not(
+      [player-ui-state='FULLSCREEN']
+    )
+    #thumbnail {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  ytmusic-player-page:has(#visualizer)
+    ytmusic-player:not([player-ui-state='MINIPLAYER']):not(
+      [player-ui-state='FULLSCREEN']
+    )
+    #thumbnail
+    img {
+    object-fit: contain !important;
   }
 }
 #ytmd-title-bar-main-panel {
@@ -214,13 +243,4 @@ ytmusic-app
   )
   :is(span, yt-formatted-string, a, yt-icon, yt-icon-shape) {
   color: inherit !important;
-}
-/* The mini guide begins below both the app title and Music navigation bar. */
-ytmusic-app ytmusic-mini-guide-renderer {
-  top: calc(
-    var(--menu-bar-height, 40px) + var(--ytmusic-nav-bar-height, 64px)
-  ) !important;
-  height: calc(
-    100vh - var(--menu-bar-height, 40px) - var(--ytmusic-nav-bar-height, 64px)
-  ) !important;
 }

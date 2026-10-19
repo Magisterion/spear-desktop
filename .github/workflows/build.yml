@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 55ff1b8745ab2417b8eab86dfdbb30e6e4f8d71d
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Handle fullscreen transitions and pointer unlock when leaving the game")
+          test "$(git rev-parse HEAD^)" = e4bd3c1369135c4511d89695c224c6daf5d92923
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Preserve native media geometry and fix guide header overlap")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -77,6 +77,7 @@ jobs:
             test-results/spear-pulsefield.png
             test-results/spear-equalizer.png
             test-results/spear-visualizer-layout.png
+            test-results/spear-mini-cover.png
           retention-days: 7
       - run: pnpm exec electron-builder --win portable:x64 -p never
         env:

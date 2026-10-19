@@ -1,13 +1,13 @@
+/* An absolute overlay inside ytmusic-player. Native media determines its box. */
 #spear-visualizer-stage {
-  position: relative !important;
-  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
   box-sizing: border-box;
-  width: 100% !important;
-  height: 180px;
-  flex: 0 0 180px;
-  min-width: 0;
+  width: 100%;
+  height: 100%;
   background: #080b16;
-  border-radius: 8px;
+  border-radius: inherit;
   overflow: hidden;
   z-index: 2;
 }
@@ -85,150 +85,24 @@
 #spear-visualizer-stage.media #spear-visualizer-tools {
   pointer-events: auto;
 }
-.spear-has-visualizer ytmusic-player-page #main-panel {
-  position: relative !important;
-  display: block !important;
-}
-.spear-has-visualizer:not(.spear-show-media)
-  ytmusic-player-page
-  #main-panel
-  > :not(#spear-visualizer-stage) {
-  visibility: hidden !important;
+
+/* Opacity preserves the native square/video aspect-ratio layout. Never hide the
+   player or its page ancestors: the mini player stays nested in those nodes. */
+ytmusic-player.spear-visualizer-active > :is(#song-image, #song-video) {
   opacity: 0 !important;
-  position: absolute !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  #main-panel
-  > :not(#spear-visualizer-stage) {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 180px !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  :is(#player, ytmusic-player, #player-container) {
-  height: 180px !important;
-  max-height: 180px !important;
-}
-#spear-visualizer-stage.mini {
-  position: fixed !important;
-  z-index: 10000;
-  right: 20px;
-  bottom: 88px;
-  width: min(340px, calc(100vw - 40px)) !important;
-  height: 180px;
-  box-shadow: 0 6px 24px #0008;
-}
-#spear-visualizer-stage.mini.media {
-  box-shadow: none;
-}
-.spear-has-visualizer:not(.spear-show-media)
-  ytmusic-player[player-ui-state='MINIPLAYER'] {
-  visibility: hidden !important;
   pointer-events: none !important;
 }
 #spear-visualizer-stage:fullscreen {
   position: fixed !important;
   inset: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  transform: none !important;
   width: 100vw !important;
   height: 100vh !important;
-  max-height: none !important;
-  border-radius: 0;
-}
-#visualizer:focus-visible,
-#spear-visualizer-tools button:focus-visible {
-  outline: 2px solid #99c8ff;
-}
-
-.spear-show-media ytmusic-player[player-ui-state='MINIPLAYER'] {
-  position: fixed !important;
-  right: 20px !important;
-  bottom: 88px !important;
-  width: min(340px, calc(100vw - 40px)) !important;
-  height: 180px !important;
-  transform: none !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-.spear-has-visualizer ytmusic-player-page #main-panel {
-  overflow: hidden !important;
-}
-
-/* Give the media its full left column on desktop-sized windows. */
-@media (min-width: 901px) {
-  ytmusic-player-page #main-panel {
-    --spear-media-height: clamp(280px, 52vh, 680px);
-  }
-  ytmusic-player-page #spear-visualizer-stage:not(.mini):not(:fullscreen) {
-    height: var(--spear-media-height);
-    flex-basis: var(--spear-media-height);
-  }
-  .spear-show-media
-    ytmusic-player-page
-    #main-panel
-    > :not(#spear-visualizer-stage),
-  .spear-show-media
-    ytmusic-player-page
-    :is(#player, ytmusic-player, #player-container) {
-    height: var(--spear-media-height) !important;
-    max-height: var(--spear-media-height) !important;
-  }
-}
-
-/* One aligned media viewport, regardless of the selected presentation. */
-.spear-has-visualizer ytmusic-player-page #main-panel {
-  padding: 0 !important;
-  min-height: 0 !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  :is(#player, #player-container, ytmusic-player) {
   margin: 0 !important;
   padding: 0 !important;
   transform: none !important;
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  min-height: 0 !important;
-  aspect-ratio: auto !important;
   max-width: none !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  :is(video, #thumbnail, #thumbnail img, #img.yt-img-shadow) {
-  object-fit: contain !important;
-  max-height: 100% !important;
-}
-/* Keep native media in exactly the same viewport as the visualizer. Music's
-   square song-image padding and auto margins otherwise shift the album cover. */
-.spear-has-visualizer ytmusic-player-page #main-panel {
-  height: var(--spear-media-height, 180px) !important;
-  max-height: var(--spear-media-height, 180px) !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  #main-panel
-  :is(#song-image, #song-video) {
-  position: absolute !important;
-  inset: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-.spear-show-media
-  ytmusic-player-page
-  #main-panel
-  :is(#thumbnail, #thumbnail img) {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
+  max-height: none !important;
+  border-radius: 0;
 }
 #spear-visualizer-tools .player-action {
   margin-left: auto;
@@ -247,7 +121,10 @@
 #spear-visualizer-stage[hidden] {
   display: none !important;
 }
-/* Custom right-hand controls are shared by both presentations. */
-.spear-show-media ytmusic-player .top-row-buttons {
+ytmusic-player:has(> #spear-visualizer-stage) .top-row-buttons {
   visibility: hidden !important;
+}
+#visualizer:focus-visible,
+#spear-visualizer-tools button:focus-visible {
+  outline: 2px solid #99c8ff;
 }

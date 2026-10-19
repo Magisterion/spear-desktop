@@ -227,6 +227,10 @@ test('Spear preferences use local IPC and portable data', async () => {
     });
     const fixturePath = path.join(temporary, 'compact-fixture.html');
     const css =
+      (await fs.readFile(
+        path.join(root, 'src/plugins/in-app-menu/titlebar.css'),
+        'utf8',
+      )) +
       (await fs.readFile(path.join(root, 'src/classic/compact.css'), 'utf8')) +
       (await fs.readFile(
         path.join(root, 'src/plugins/visualizer/empty-player.css'),
@@ -235,18 +239,26 @@ test('Spear preferences use local IPC and portable data', async () => {
     await fs.writeFile(
       fixturePath,
       `<!doctype html><style>
-      * { box-sizing: border-box; } body { margin:0; background:#151821; color:white; --menu-bar-height:40px; }
-      ytmusic-app, ytmusic-app-layout, ytmusic-player-page { display:block; }
-      tp-yt-app-drawer { position:fixed; top:0; height:100vh; width:72px; background:#303540; }
-      #guide-wrapper { position:relative; } #guide-wrapper button { height:40px; }
-      ytmusic-player-page { margin-left:72px; width:calc(100% - 72px); padding:90px 88px; }
-      #columns { display:flex; } #main-panel, #side-panel { width:900px; min-width:900px; }
-      #player-container, #player { height:600px; } #player { position:relative; background:#070a12; }
-      ytmusic-player { display:block; } #visualizer { width:100%; height:100%; } #side-panel { transform:translateY(500px); }
-      ${css}</style><ytmusic-app><tp-yt-app-drawer><div id="guide-wrapper"><button>Menu</button></div></tp-yt-app-drawer>
-      <ytmusic-app-layout id="layout"><ytmusic-player-page slot="player-page"><div id="columns">
-      <div id="main-panel"><div id="player-container"><ytmusic-player id="player" player-ui-state="PLAYER_PAGE"><div id="song-image" style="padding-top:100%"><div id="thumbnail">Album cover</div></div></ytmusic-player></div>
-      <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button>Visualizer</button><button>Equalizer</button><button>Fullscreen</button><button class="player-action">Player</button><button class="mini-action">Close mini</button></div></section></div>
+      * { box-sizing:border-box; } body { margin:0;background:#1b2c42;color:white;--ytmusic-nav-bar-height:64px;--ytmusic-player-bar-height:72px; }
+      ytmusic-app,ytmusic-app-layout,ytmusic-player-page { display:block; }
+      #mini-guide.ytmusic-app { position:fixed;left:0;top:0;width:72px;height:100%;background:#25374e;z-index:4; }
+      #mini-guide-spacer.ytmusic-app { margin-top:64px; }
+      #mini-guide button { display:block;width:72px;height:72px; }
+      [slot='nav-bar'] { position:fixed;top:0;left:0;height:64px;width:100%;z-index:5;background:#152332; }
+      ytmusic-player-page { margin-left:72px;width:calc(100% - 72px);padding:24px; }
+      #columns { display:flex;gap:32px;height:100%; }
+      #main-panel { flex:1;min-width:0;display:flex;align-items:center;justify-content:center; }
+      #player-container { width:100%;max-width:800px; }
+      #side-panel { flex:0 0 30%;min-width:0; }
+      ytmusic-player { display:block;position:relative;width:100%;background:#080b16; }
+      #song-image { padding-top:100%; } #thumbnail { position:absolute;inset:0;width:100%;height:100%; }
+      #thumbnail img { width:100%;height:100%;object-fit:contain; }
+      ytmusic-player[player-ui-state='MINIPLAYER'] { position:fixed;right:20px;bottom:88px;width:220px;height:220px;z-index:8; }
+      ${css}</style><ytmusic-app>
+      <div id="mini-guide" class="ytmusic-app"><div id="mini-guide-spacer" class="ytmusic-app"></div><button>Home</button><button>Explore</button></div>
+      <ytmusic-app-layout id="layout"><div slot="nav-bar">YouTube Music</div><ytmusic-player-page slot="player-page"><div id="columns">
+      <div id="main-panel"><div id="player-container"><ytmusic-player id="player" player-ui-state="PLAYER_PAGE"><div id="song-image"><div id="thumbnail"><img alt="Album artwork" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Crect width='320' height='320' fill='%234579a2'/%3E%3Ccircle cx='160' cy='160' r='100' fill='%23efc579'/%3E%3C/svg%3E"></div></div></ytmusic-player></div>
+      <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button aria-label="Visualizer">V</button><button aria-label="Equalizer">E</button><button aria-label="Fullscreen">F</button><button class="player-action">↕</button><button class="mini-action" aria-label="Close mini">×</button></div></section></div>
       <div id="side-panel">Queue</div></div></ytmusic-player-page></ytmusic-app-layout></ytmusic-app>`,
     );
     await app.evaluate(({ BrowserWindow }, file) => {
@@ -266,92 +278,81 @@ test('Spear preferences use local IPC and portable data', async () => {
     await layout.evaluate(() => {
       window.stage = createVisualizerStage();
     });
-    const boxes = await layout.evaluate(() =>
-      Object.fromEntries(
-        [
-          '#visualizer',
-          '#side-panel',
-          '#spear-visualizer-tools',
-          '#guide-wrapper button',
-        ].map((selector) => {
-          const r = document.querySelector(selector).getBoundingClientRect();
-          return [
-            selector,
-            {
-              left: r.left,
-              right: r.right,
-              top: r.top,
-              bottom: r.bottom,
-              height: r.height,
-            },
-          ];
-        }),
-      ),
-    );
-    expect(boxes['#visualizer'].height).toBe(180);
-    expect(boxes['#visualizer'].right).toBeLessThanOrEqual(720);
-    expect(boxes['#side-panel'].right).toBeLessThanOrEqual(720);
-    expect(boxes['#side-panel'].top).toBeLessThan(300);
-    expect(boxes['#spear-visualizer-tools'].top).toBeGreaterThanOrEqual(
-      boxes['#visualizer'].top,
-    );
-    expect(boxes['#spear-visualizer-tools'].bottom).toBeLessThan(
-      boxes['#visualizer'].bottom,
-    );
-    expect(boxes['#guide-wrapper button'].top).toBeGreaterThanOrEqual(40);
-    await layout.evaluate(() => window.stage.toggleMedia());
-    await expect(layout.locator('#visualizer')).not.toBeVisible();
-    await expect(layout.locator('#player-container')).toBeVisible();
-    await layout.evaluate(() => window.stage.toggleMedia());
-    await expect(layout.locator('#visualizer')).toBeVisible();
-    await expect(layout.locator('#player-container')).not.toBeVisible();
-    await expect(
-      layout.getByRole('button', { name: 'Minimize player', exact: true }),
-    ).toBeVisible();
-    // Widen the real Electron fixture window and compare the two media rectangles.
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()
-        .find((w) => w.webContents.getURL().includes('compact-fixture'))
-        .setSize(1200, 900),
-    );
-    await layout.evaluate(() => window.stage.toggleMedia());
-    await expect
-      .poll(() =>
-        layout.evaluate(() => {
-          const a = document
-            .querySelector('#spear-visualizer-stage')
-            .getBoundingClientRect();
-          const b = document
-            .querySelector('#song-image')
-            .getBoundingClientRect();
-          return (
-            Math.abs(a.x - b.x) +
-            Math.abs(a.y - b.y) +
-            Math.abs(a.width - b.width) +
-            Math.abs(a.height - b.height)
-          );
-        }),
-      )
-      .toBeLessThan(2);
-    await expect(
-      layout.getByRole('button', { name: 'Minimize player', exact: true }),
-    ).toBeVisible();
-    await layout.evaluate(() => window.stage.toggleMedia());
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()
-        .find((w) => w.webContents.getURL().includes('compact-fixture'))
-        .setSize(720, 900),
-    );
+    const bounds = (selector) =>
+      layout.locator(selector).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      });
+    const overlayMatchesPlayer = async () => {
+      const a = await bounds('#player'),
+        b = await bounds('#spear-visualizer-stage');
+      for (const key of ['x', 'y', 'width', 'height'])
+        expect(Math.abs(a[key] - b[key])).toBeLessThan(1);
+    };
+    await overlayMatchesPlayer();
+    expect((await bounds('#player')).height).toBe(180);
+    for (const enabled of [false, true]) {
+      await layout.evaluate(
+        (enabled) =>
+          document
+            .querySelector('ytmusic-app')
+            .toggleAttribute('is-bauhaus-sidenav-enabled', enabled),
+        enabled,
+      );
+      const nav = await bounds('[slot="nav-bar"]'),
+        home = await bounds('#mini-guide button:first-of-type');
+      expect(home.y).toBeGreaterThanOrEqual(nav.y + nav.height);
+      expect(home.y).toBeLessThanOrEqual(nav.y + nav.height + 1);
+    }
+    // Native media geometry must survive both toggles and viewport changes.
+    const nativeWindow = await app.browserWindow(layout);
+    for (const width of [1200, 1900]) {
+      await nativeWindow.evaluate((w, width) => w.setSize(width, 1000), width);
+      const contentWidth = await nativeWindow.evaluate(
+        (w) => w.getContentSize()[0],
+      );
+      await expect
+        .poll(() => layout.evaluate(() => innerWidth))
+        .toBe(contentWidth);
+      const before = await bounds('#player');
+      await layout.evaluate(() => window.stage.toggleMedia());
+      await expect(layout.locator('#visualizer')).not.toBeVisible();
+      await expect(layout.locator('#song-image')).toHaveCSS('opacity', '1');
+      await overlayMatchesPlayer();
+      expect(await bounds('#player')).toEqual(before);
+      await layout.evaluate(() => window.stage.toggleMedia());
+      expect(await bounds('#player')).toEqual(before);
+    }
     await layout.screenshot({
       path: path.join(root, 'test-results/spear-visualizer-layout.png'),
     });
+    // The mini player remains in its native page ancestry, with real painted artwork.
     await layout.evaluate(() =>
       document
-        .querySelector('ytmusic-player')
+        .querySelector('#player')
         .setAttribute('player-ui-state', 'MINIPLAYER'),
     );
     await expect(layout.locator('#spear-visualizer-stage')).toHaveClass('mini');
-    await expect(layout.locator('#visualizer')).toHaveCSS('height', '180px');
+    await overlayMatchesPlayer();
+    await layout.evaluate(() => window.stage.toggleMedia());
+    await expect(layout.locator('#song-image')).toHaveCSS('opacity', '1');
+    expect(
+      await layout
+        .locator('#thumbnail img')
+        .evaluate((img) => img.complete && img.naturalWidth > 0),
+    ).toBe(true);
+    expect(
+      await layout.locator('#thumbnail img').evaluate((img) => {
+        const r = img.getBoundingClientRect();
+        return (
+          document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) ===
+          img
+        );
+      }),
+    ).toBe(true);
+    await layout.locator('#player').screenshot({
+      path: path.join(root, 'test-results/spear-mini-cover.png'),
+    });
     await expect(
       layout.getByRole('button', { name: 'Open player', exact: true }),
     ).toBeVisible();
@@ -359,6 +360,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       layout.getByRole('button', { name: 'Close mini', exact: true }),
     ).toBeVisible();
     await layout.evaluate(() => {
+      window.stage.showVisualizer();
       document.querySelector('#spear-visualizer-tools button').onclick = () =>
         document.querySelector('#spear-visualizer-stage').requestFullscreen();
     });
@@ -367,17 +369,13 @@ test('Spear preferences use local IPC and portable data', async () => {
       .poll(() => layout.evaluate(() => document.fullscreenElement?.id))
       .toBe('spear-visualizer-stage');
     expect(
-      await layout
-        .locator('#visualizer')
-        .evaluate((el) => el.getBoundingClientRect().height),
-    ).toBeGreaterThan(500);
-    expect(
       await layout.locator('#spear-visualizer-stage').evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { x: r.x, y: r.y };
       }),
     ).toEqual({ x: 0, y: 0 });
     await layout.evaluate(() => document.exitFullscreen());
+
     await layout.evaluate(() => {
       const app = document.querySelector('ytmusic-app');
       const area = document.createElement('div');
