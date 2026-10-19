@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = f14fc3b02104eb0ccf3b484b812ef77df3a5ac15
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Integrate Prism Run and match the native library icon")
+          test "$(git rev-parse HEAD^)" = 183356c5b8a2f34455cdccc51088b6b133cb514a
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Fix compact layout, visualizer controls, album themes and game cadence")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
@@ -77,6 +77,7 @@ jobs:
             test-results/spear-pulsefield.png
             test-results/spear-equalizer.png
             test-results/spear-visualizer-layout.png
+            test-results/spear-compact-layout.png
             test-results/spear-mini-cover.png
           retention-days: 7
       - run: pnpm exec electron-builder --win portable:x64 -p never

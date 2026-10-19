@@ -158,6 +158,10 @@ export default createPlugin({
         RATIO_KEY,
         `${~~(config.ratio * 100)}%`,
       );
+      document.documentElement.style.setProperty(
+        '--spear-album-ratio',
+        `${~~(config.ratio * 100)}%`,
+      );
       if (config.enableSeekbar) document.body.classList.add('seekbar-theme');
       else document.body.classList.remove('seekbar-theme');
     },
@@ -177,74 +181,16 @@ export default createPlugin({
       }
       return `color-mix(in srgb, ${color} ${originalRatio}, ${keyColor} ${colorRatio})`;
     },
-    updateColor(alpha: number) {
-      const variableMap = {
-        '--ytmusic-color-black1': '#212121',
-        '--ytmusic-color-black2': '#181818',
-        '--ytmusic-color-black3': '#030303',
-        '--ytmusic-color-black4': '#030303',
-        '--ytmusic-color-blackpure': '#000',
-        '--dark-theme-background-color': '#212121',
-        '--yt-spec-base-background': '#0f0f0f',
-        '--yt-spec-raised-background': '#212121',
-        '--yt-spec-menu-background': '#282828',
-        '--yt-spec-static-brand-black': '#212121',
-        '--yt-spec-static-overlay-background-solid': '#000',
-        '--yt-spec-static-overlay-background-heavy': 'rgba(0,0,0,0.8)',
-        '--yt-spec-static-overlay-background-medium': 'rgba(0,0,0,0.6)',
-        '--yt-spec-static-overlay-background-medium-light': 'rgba(0,0,0,0.3)',
-        '--yt-spec-static-overlay-background-light': 'rgba(0,0,0,0.1)',
-        '--yt-spec-general-background-a': '#181818',
-        '--yt-spec-general-background-b': '#0f0f0f',
-        '--yt-spec-general-background-c': '#030303',
-        '--yt-spec-snackbar-background': '#030303',
-        '--yt-spec-filled-button-text': '#030303',
-        '--yt-spec-black-1': '#282828',
-        '--yt-spec-black-2': '#1f1f1f',
-        '--yt-spec-black-3': '#161616',
-        '--yt-spec-black-4': '#0d0d0d',
-        '--yt-spec-black-pure': '#000',
-        '--yt-spec-black-pure-alpha-5': 'rgba(0,0,0,0.05)',
-        '--yt-spec-black-pure-alpha-10': 'rgba(0,0,0,0.1)',
-        '--yt-spec-black-pure-alpha-15': 'rgba(0,0,0,0.15)',
-        '--yt-spec-black-pure-alpha-30': 'rgba(0,0,0,0.3)',
-        '--yt-spec-black-pure-alpha-60': 'rgba(0,0,0,0.6)',
-        '--yt-spec-black-pure-alpha-80': 'rgba(0,0,0,0.8)',
-        '--yt-spec-black-1-alpha-98': 'rgba(40,40,40,0.98)',
-        '--yt-spec-black-1-alpha-95': 'rgba(40,40,40,0.95)',
-        '--paper-toast-background-color': '#323232',
-        '--ytmusic-search-background': '#030303',
-        '--paper-slider-knob-color': '#f03',
-        '--paper-dialog-background-color': '#212121',
-        '--paper-progress-active-color-1': '#f03',
-        '--paper-progress-active-color-2': '#ff2791',
-        '--yt-spec-inverted-background': '#f3f3f3',
-        'background': 'rgba(3, 3, 3)',
-        '--ytmusic-background': 'rgba(3, 3, 3)',
-      };
-
-      const colorKeyMap: Record<string, string> = {
-        'background': DARK_COLOR_KEY,
-        '--ytmusic-background': DARK_COLOR_KEY,
-      };
-
-      const ratioMap: Record<string, number> = {
-        '--paper-progress-active-color-1': 1.75,
-        '--paper-progress-active-color-2': 1.75,
-        '--yt-spec-inverted-background': 1.75,
-      };
-
-      const getMixedColor = (this as Renderer).getMixedColor.bind(this);
-      Object.entries(variableMap).map(([variable, color]) => {
-        const key = colorKeyMap[variable] ?? COLOR_KEY;
-        const ratio = ratioMap[variable] ?? undefined;
-
-        document.documentElement.style.setProperty(
-          variable,
-          getMixedColor(color, key, alpha, ratio),
-          'important',
-        );
-      });
+    updateColor(_alpha: number) {
+      document.documentElement.style.setProperty(
+        '--spear-album-color',
+        this.darkColor?.hex() ?? '#181818',
+      );
+    },
+    stop() {
+      document.documentElement.style.removeProperty('--spear-album-ratio');
+      document.documentElement.style.removeProperty('--spear-album-color');
+      document.body.classList.remove('seekbar-theme');
     },
   },
 });

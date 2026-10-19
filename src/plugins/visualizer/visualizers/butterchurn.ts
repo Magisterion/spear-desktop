@@ -46,7 +46,11 @@ class ButterchurnVisualizer extends Visualizer {
         performance.now() >= nextPreset &&
         !document.querySelector('video')?.paused
       ) {
-        presetIndex = (presetIndex + 1) % milkdropPresets.length;
+        presetIndex =
+          (presetIndex +
+            1 +
+            Math.floor(Math.random() * (milkdropPresets.length - 1))) %
+          milkdropPresets.length;
         this.visualizer.loadPreset(
           presets[milkdropPresets[presetIndex]],
           config.butterchurn.blendTimeInSeconds,

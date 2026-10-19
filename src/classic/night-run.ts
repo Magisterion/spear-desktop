@@ -17,7 +17,7 @@ function openGame() {
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent =
-    ':host{font:14px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{position:absolute;left:24px;top:22px;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#score{position:absolute;right:24px;top:22px;max-width:56%;text-align:right}#status,#score{pointer-events:none;background:#090b17bb;padding:12px 16px;border-radius:10px;line-height:1.5;letter-spacing:.3px}footer{position:absolute;bottom:14px;left:12px;right:12px;text-align:center;pointer-events:none;color:#d2e3f3;text-shadow:0 1px 4px #000}progress{width:60px;height:6px;accent-color:#70f6e4}';
+    ':host{font:14px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{position:absolute;left:24px;top:22px;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#score{position:absolute;right:24px;top:22px;max-width:56%;text-align:right}#status,#score{z-index:2;display:block;pointer-events:none;background:#090b17bb;padding:12px 16px;border-radius:10px;line-height:1.5;letter-spacing:.3px}footer{position:absolute;bottom:14px;left:12px;right:12px;text-align:center;pointer-events:none;color:#d2e3f3;text-shadow:0 1px 4px #000}progress{width:60px;height:6px;accent-color:#70f6e4}';
   const canvas = document.createElement('canvas');
   canvas.tabIndex = 0;
   canvas.setAttribute(
@@ -52,7 +52,8 @@ function openGame() {
     lastBeat = audioMotion.beat,
     lastTrack = '',
     lastMediaTime = 0,
-    pulse = 0;
+    pulse = 0,
+    lastSpawnTime = -1;
   const resize = new ResizeObserver(() => {
     const rect = host.getBoundingClientRect();
     width = Math.max(320, rect.width);
@@ -131,7 +132,7 @@ function openGame() {
   };
   const polygon = (
     points: { x: number; y: number }[],
-    fill: string,
+    fill: string | CanvasGradient,
     stroke?: string,
   ) => {
     ctx.beginPath();
@@ -146,6 +147,8 @@ function openGame() {
     }
   };
   function frame(time: number) {
+    // Keep the loop alive even if a transient artwork/video frame cannot render.
+    raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
     const video = document.querySelector('video');
@@ -160,14 +163,35 @@ function openGame() {
       drive.reset();
       lastTrack = track;
       lastBeat = audioMotion.beat;
+      lastSpawnTime = -1;
     }
     lastMediaTime = video?.currentTime ?? 0;
-    if (audioMotion.active && audioMotion.beat !== lastBeat) {
+    const active =
+      audioMotion.active ||
+      !!(video && !video.paused && !video.ended && video.readyState >= 2);
+    const beatInterval = 60 / Math.max(60, Math.min(180, audioMotion.bpm));
+    const musicTime = video?.currentTime || audioMotion.time;
+    const onset = audioMotion.beat !== lastBeat;
+    // Sustained music may have no bass onsets. Continue the last detected tempo
+    // on the media clock, with colors from the live spectrum, instead of an empty road.
+    if (
+      active &&
+      (onset ||
+        lastSpawnTime < 0 ||
+        musicTime - lastSpawnTime >= beatInterval * 1.5)
+    ) {
       drive.beat(audioMotion.band);
-      lastBeat = audioMotion.beat;
+      lastSpawnTime = musicTime;
       pulse = 1;
     }
-    drive.step(dt, audioMotion.active, audioMotion.bpm);
+    lastBeat = audioMotion.beat;
+    drive.step(dt, active, audioMotion.bpm);
+    status.textContent = active
+      ? track || 'Prism Run'
+      : 'Play music to bring the track to life';
+    const shield = Math.max(0, Math.min(3, Math.ceil(run.shield / 35)));
+    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${'◆'.repeat(shield)}${'◇'.repeat(3 - shield)}`;
+    meter.value = Math.max(audioMotion.bass, audioMotion.energy);
     pulse = Math.max(0, pulse - dt * 3);
     ctx.fillStyle = '#090b17';
     ctx.fillRect(0, 0, width, height);
@@ -228,6 +252,10 @@ function openGame() {
     }
     // No lane markings, scrolling grid, roadside posts, camera sway, or zoom.
     // Depth comes only from approaching objects and these stationary edges.
+    const road = ctx.createLinearGradient(0, height * 0.26, 0, height * 0.6);
+    road.addColorStop(0, '#0a102400');
+    road.addColorStop(0.65, '#0a102499');
+    road.addColorStop(1, '#0a1024c9');
     polygon(
       [
         project(-1.12, 0),
@@ -235,7 +263,7 @@ function openGame() {
         project(1.12, 1.13),
         project(-1.12, 1.13),
       ],
-      '#0a1024c9',
+      road,
     );
     for (const x of [-1.12, 1.12]) {
       const a = project(x, 0),
@@ -243,7 +271,10 @@ function openGame() {
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = '#ac9aff50';
+      const edge = ctx.createLinearGradient(0, height * 0.26, 0, height * 0.65);
+      edge.addColorStop(0, '#ac9aff00');
+      edge.addColorStop(1, '#ac9aff50');
+      ctx.strokeStyle = edge;
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
@@ -355,12 +386,6 @@ function openGame() {
         height * 0.4 + 72,
       );
     }
-    status.textContent = audioMotion.active
-      ? track || 'Prism Run'
-      : 'Play music to bring the track to life';
-    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${'◆'.repeat(Math.ceil(run.shield / 35))}${'◇'.repeat(3 - Math.ceil(run.shield / 35))}`;
-    meter.value = Math.max(audioMotion.bass, audioMotion.energy);
-    raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);
 }

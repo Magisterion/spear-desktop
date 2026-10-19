@@ -5,14 +5,14 @@
 
 /* original style */
 ytmusic-app-layout {
-  overflow: auto scroll;
-  height: calc(100vh - var(--menu-bar-height, 36px));
+  overflow: hidden auto;
+  height: 100vh;
 
   /* fixes laggy list scrolling in large playlists */
   backface-visibility: hidden;
 }
 ytmusic-app-layout#layout {
-  --ytmusic-nav-bar-offset: 0px;
+  --ytmusic-nav-bar-offset: var(--menu-bar-height, 40px);
 }
 ytmusic-app-layout > #content {
   padding-top: var(--menu-bar-height, 36px);
@@ -22,7 +22,7 @@ ytmusic-app-layout::-webkit-scrollbar {
   width: var(--ytmusic-scrollbar-width);
 }
 ytmusic-app-layout::-webkit-scrollbar-thumb {
-  background-color: rgb(126, 126, 126);
+  background-color: var(--player-muted, #7e7e7e);
 }
 
 ytmusic-app-layout > [slot='nav-bar'],
@@ -37,12 +37,10 @@ ytmusic-app-layout > [slot='nav-bar'],
 /* Both current and legacy guide markup live outside the shifted nav bar.
    Shift the real wrappers once, then retain Music's native nav-height spacer. */
 ytmusic-app #mini-guide.ytmusic-app,
-ytmusic-app #guide-wrapper.ytmusic-app,
-ytmusic-app tp-yt-app-drawer {
+ytmusic-app #guide-wrapper.ytmusic-app {
   top: var(--menu-bar-height, 0px) !important;
   height: calc(100vh - var(--menu-bar-height, 0px)) !important;
 }
-ytmusic-app #guide-spacer.ytmusic-app,
 ytmusic-app #mini-guide-spacer.ytmusic-app {
   margin-top: var(--ytmusic-nav-bar-height, 64px) !important;
 }
@@ -78,7 +76,7 @@ ytmusic-app-layout
 
 /* ytm-bugs: see https://github.com/pear-devs/pear-desktop/issues/1737 */
 html {
-  scrollbar-color: unset;
+  scrollbar-color: var(--player-muted, #7e7e7e) var(--player-surface, #181818);
 }
 
 /* fixes scrollbar lagging behind in large playlists */
@@ -89,4 +87,22 @@ ytmusic-browse-response .ytmusic-responsive-list-item-renderer {
 /* fix fullscreen style */
 ytmusic-player[player-ui-state='FULLSCREEN'] {
   margin-top: calc(var(--menu-bar-height, 32px) * -1) !important;
+}
+
+/* Drawer headers supply their own nav row; the full guide has no spacer. */
+ytmusic-app #guide-spacer.ytmusic-app {
+  margin: 0 !important;
+}
+ytmusic-app tp-yt-app-drawer {
+  top: var(--menu-bar-height, 40px) !important;
+}
+ytmusic-tabs {
+  top: calc(
+    var(--ytmusic-nav-bar-height, 64px) + var(--menu-bar-height, 40px)
+  ) !important;
+}
+
+/* The drawer transforms its contents, making a fixed child local to it. */
+ytmusic-app tp-yt-app-drawer #guide-wrapper.ytmusic-app {
+  top: 0 !important;
 }

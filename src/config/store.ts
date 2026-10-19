@@ -15,6 +15,10 @@ export type IStore = InstanceType<
 >;
 
 const migrations = {
+  '>=3.12.15'(store: IStore) {
+    // Adopt the requested shuffled MilkDrop default once; later user choices persist.
+    store.set('plugins.visualizer.butterchurn.cycle', true);
+  },
   '>=3.12.0'(store: IStore) {
     const blockerConfig = store.get(
       'plugins.adblocker',

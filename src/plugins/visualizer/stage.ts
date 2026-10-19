@@ -8,6 +8,16 @@ export function createVisualizerStage() {
     document.body.append(stage);
   }
   const container = stage;
+  // Music handles clicks on its entire media surface as play/pause.
+  for (const type of [
+    'click',
+    'dblclick',
+    'pointerdown',
+    'pointerup',
+    'keydown',
+    'contextmenu',
+  ])
+    container.addEventListener(type, (event) => event.stopPropagation());
   let mountedPlayer: Element | null = null;
   let media = false;
   const cover = document.createElement('img');
@@ -24,6 +34,15 @@ export function createVisualizerStage() {
     if (document.fullscreenElement === container) return;
     const player = document.querySelector('ytmusic-player');
     const playerState = player?.getAttribute('player-ui-state');
+    if (player instanceof HTMLElement) {
+      player.style.setProperty(
+        '--spear-artwork',
+        src ? `url(${JSON.stringify(src)})` : 'none',
+      );
+      player.classList.toggle('spear-media-backdrop', media && !!src);
+      if (playerState !== 'MINIPLAYER')
+        player.classList.remove('spear-mini-dismissed');
+    }
     // Use Music's actual media box, including its native mini-player geometry.
     // The overlay never participates in page layout or moves the media node.
     if (mountedPlayer !== player) {
@@ -53,6 +72,10 @@ export function createVisualizerStage() {
   const timer = setInterval(layout, 250);
   return {
     container,
+    dismissMini() {
+      if (mountedPlayer?.getAttribute('player-ui-state') === 'MINIPLAYER')
+        mountedPlayer.classList.add('spear-mini-dismissed');
+    },
     toggleMedia() {
       media = !media;
       container.classList.toggle('media', media);
@@ -65,6 +88,7 @@ export function createVisualizerStage() {
       return !media;
     },
     showVisualizer() {
+      mountedPlayer?.classList.remove('spear-mini-dismissed');
       media = false;
       container.classList.remove('media');
       container
@@ -75,7 +99,11 @@ export function createVisualizerStage() {
     },
     dispose() {
       clearInterval(timer);
-      mountedPlayer?.classList.remove('spear-visualizer-active');
+      mountedPlayer?.classList.remove(
+        'spear-visualizer-active',
+        'spear-media-backdrop',
+        'spear-mini-dismissed',
+      );
       container.remove();
       document.documentElement.classList.remove(
         'spear-has-visualizer',

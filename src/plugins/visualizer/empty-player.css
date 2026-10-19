@@ -128,3 +128,25 @@ ytmusic-player:has(> #spear-visualizer-stage) .top-row-buttons {
 #spear-visualizer-tools button:focus-visible {
   outline: 2px solid #99c8ff;
 }
+
+/* Dismissing the floating surface leaves playback and the queue intact. */
+ytmusic-player.spear-mini-dismissed[player-ui-state='MINIPLAYER'] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+ytmusic-player.spear-media-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(#080b1660, #080b1680),
+    var(--spear-artwork) center / cover;
+  filter: blur(18px);
+  clip-path: inset(0);
+  pointer-events: none;
+}
+ytmusic-player.spear-media-backdrop #song-image,
+ytmusic-player.spear-media-backdrop #thumbnail {
+  background: transparent !important;
+}

@@ -244,3 +244,39 @@ ytmusic-app
   :is(span, yt-formatted-string, a, yt-icon, yt-icon-shape) {
   color: inherit !important;
 }
+
+/* At compact widths the hamburger owns navigation; keep the full native drawer. */
+@media (max-width: 900px) {
+  ytmusic-app,
+  ytmusic-app-layout {
+    --ytmusic-guide-width: 0px !important;
+  }
+  ytmusic-app #mini-guide.ytmusic-app,
+  #mini-guide-background.ytmusic-app-layout {
+    display: none !important;
+  }
+  ytmusic-app #guide-wrapper.ytmusic-app {
+    width: 240px !important;
+  }
+}
+/* Native bottom controls otherwise repaint an unthemed opaque rectangle. */
+ytmusic-player-bar {
+  --ytmusic-player-bar-background: var(--player-bottom) !important;
+  --ytmusic-player-bar-background-color: var(--player-bottom) !important;
+  --ytmusic-color-grey3: var(--player-top) !important;
+  color: var(--player-text) !important;
+}
+ytmusic-player-bar
+  :is(.right-controls, .middle-controls, .left-controls, #right-controls) {
+  background: transparent !important;
+}
+* {
+  scrollbar-color: var(--player-muted, #888) var(--player-surface, #181818);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--player-muted, #888);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--player-surface, #181818);
+}

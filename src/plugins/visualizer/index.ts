@@ -98,7 +98,7 @@ export default createPlugin({
     butterchurn: {
       preset: 'Geiss - Spiral Artifact',
       blendTimeInSeconds: 2.7,
-      cycle: false,
+      cycle: true,
     },
     vudio: {
       effect: 'lighting',
@@ -196,7 +196,7 @@ export default createPlugin({
         })),
       },
       {
-        label: 'Cycle MilkDrop presets every 45 seconds',
+        label: 'Randomize MilkDrop presets every 45 seconds',
         type: 'checkbox',
         checked: !!config.butterchurn.cycle,
         click(item) {
@@ -383,7 +383,7 @@ export default createPlugin({
           'Close mini player',
           'M6 6l12 12M6 18L18 6',
           () => {
-            nativeAction('.player-close-button');
+            this.props.stage?.dismissMini();
           },
         );
         dismiss.className = 'mini-action';

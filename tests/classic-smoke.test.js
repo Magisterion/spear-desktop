@@ -239,13 +239,13 @@ test('Spear preferences use local IPC and portable data', async () => {
     await fs.writeFile(
       fixturePath,
       `<!doctype html><style>
-      * { box-sizing:border-box; } body { margin:0;background:#1b2c42;color:white;--ytmusic-nav-bar-height:64px;--ytmusic-player-bar-height:72px; }
+      * { box-sizing:border-box; } body { margin:0;background:#1b2c42;color:white;--ytmusic-nav-bar-height:64px;--ytmusic-player-bar-height:72px;--ytmusic-guide-width:72px; }
       ytmusic-app,ytmusic-app-layout,ytmusic-player-page { display:block; }
       #mini-guide.ytmusic-app { position:fixed;left:0;top:0;width:72px;height:100%;background:#25374e;z-index:4; }
       #mini-guide-spacer.ytmusic-app { margin-top:64px; }
       #mini-guide button { display:block;width:72px;height:72px; }
       [slot='nav-bar'] { position:fixed;top:0;left:0;height:64px;width:100%;z-index:5;background:#152332; }
-      ytmusic-player-page { margin-left:72px;width:calc(100% - 72px);padding:24px; }
+      ytmusic-player-page { position:fixed;top:64px;left:var(--ytmusic-guide-width);width:calc(100% - var(--ytmusic-guide-width));padding:24px; }
       #columns { display:flex;gap:32px;height:100%; }
       #main-panel { flex:1;min-width:0;display:flex;align-items:center;justify-content:center; }
       #player-container { width:100%;max-width:800px; }
@@ -255,7 +255,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       #thumbnail img { width:100%;height:100%;object-fit:contain; }
       ytmusic-player[player-ui-state='MINIPLAYER'] { position:fixed;right:20px;bottom:88px;width:220px;height:220px;z-index:8; }
       ${css}</style><ytmusic-app>
-      <div id="mini-guide" class="ytmusic-app"><div id="mini-guide-spacer" class="ytmusic-app"></div><button>Home</button><button>Explore</button></div>
+      <div id="mini-guide" class="ytmusic-app"><div id="mini-guide-spacer" class="ytmusic-app"></div><button>Home</button><button>Explore</button><button>Library</button></div>
       <ytmusic-app-layout id="layout"><div slot="nav-bar">YouTube Music</div><ytmusic-player-page slot="player-page"><div id="columns">
       <div id="main-panel"><div id="player-container"><ytmusic-player id="player" player-ui-state="PLAYER_PAGE"><div id="song-image"><div id="thumbnail"><img alt="Album artwork" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Crect width='320' height='320' fill='%234579a2'/%3E%3Ccircle cx='160' cy='160' r='100' fill='%23efc579'/%3E%3C/svg%3E"></div></div></ytmusic-player></div>
       <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button aria-label="Visualizer">V</button><button aria-label="Equalizer">E</button><button aria-label="Fullscreen">F</button><button class="player-action">↕</button><button class="mini-action" aria-label="Close mini">×</button></div></section></div>
@@ -291,19 +291,19 @@ test('Spear preferences use local IPC and portable data', async () => {
     };
     await overlayMatchesPlayer();
     expect((await bounds('#player')).height).toBe(180);
-    for (const enabled of [false, true]) {
-      await layout.evaluate(
-        (enabled) =>
-          document
-            .querySelector('ytmusic-app')
-            .toggleAttribute('is-bauhaus-sidenav-enabled', enabled),
-        enabled,
-      );
-      const nav = await bounds('[slot="nav-bar"]'),
-        home = await bounds('#mini-guide button:first-of-type');
-      expect(home.y).toBeGreaterThanOrEqual(nav.y + nav.height);
-      expect(home.y).toBeLessThanOrEqual(nav.y + nav.height + 1);
-    }
+    await expect(layout.locator('#mini-guide')).not.toBeVisible();
+    // Stage events must never trigger the native player play/pause handler.
+    await layout.evaluate(() => {
+      window.nativeClicks = 0;
+      document
+        .querySelector('#player')
+        .addEventListener('click', () => window.nativeClicks++);
+    });
+    await layout.locator('#visualizer').click();
+    expect(await layout.evaluate(() => window.nativeClicks)).toBe(0);
+    await layout.screenshot({
+      path: path.join(root, 'test-results/spear-compact-layout.png'),
+    });
     // Native media geometry must survive both toggles and viewport changes.
     const nativeWindow = await app.browserWindow(layout);
     for (const width of [1200, 1900]) {
@@ -359,6 +359,10 @@ test('Spear preferences use local IPC and portable data', async () => {
     await expect(
       layout.getByRole('button', { name: 'Close mini', exact: true }),
     ).toBeVisible();
+    await layout.evaluate(() => window.stage.dismissMini());
+    await expect(layout.locator('#player')).not.toBeVisible();
+    await layout.evaluate(() => window.stage.showVisualizer());
+    await expect(layout.locator('#player')).toBeVisible();
     await layout.evaluate(() => {
       window.stage.showVisualizer();
       document.querySelector('#spear-visualizer-tools button').onclick = () =>
@@ -614,8 +618,8 @@ test('Spear preferences use local IPC and portable data', async () => {
     await game.keyboard.press('r');
     await expect(game.locator('#score')).toContainText('0 pts');
     await game.evaluate(() => {
+      // Sustained oscillator: no injected onset. Tempo fallback must keep gameplay alive.
       audioMotion.band = 0;
-      audioMotion.beat++;
     });
     // Physical collection in the center lane, without any timed key press.
     await expect(game.locator('#score')).toContainText(/[1-9][0-9]* pts/, {

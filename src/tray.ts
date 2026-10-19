@@ -169,12 +169,7 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
       }
 
       tray.setToolTip(
-        'YouTube Music Spear\n' +
-          t('main.tray.tooltip.with-song-info', {
-            artist: songInfo.artist,
-            title: songInfo.title,
-            applicationName: APPLICATION_NAME,
-          }),
+        `${APPLICATION_NAME}\n${[songInfo.artist, songInfo.title].filter(Boolean).join(' — ')}`,
       );
 
       tray.setImage(songInfo.isPaused ? pausedTrayIcon : defaultTrayIcon);
