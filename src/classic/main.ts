@@ -280,7 +280,7 @@ async function snapshot() {
     proxy: config.get('options.proxy'),
     minimizeOnAutoStart: config.get('options.minimizeOnAutoStart') ?? true,
     tray: config.get('options.tray'),
-    trayClickPlayPause: config.get('options.trayClickPlayPause'),
+    trayClickOpensWindow: !config.get('options.trayClickPlayPause'),
     animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
     trayPinned: config.get('options.trayPinned') ?? false,
     appearance: controls(
@@ -485,36 +485,38 @@ export function setupClassic(win: BrowserWindow) {
       mystify: 'Mystify trails',
       bubbles: 'Glass bubbles',
     };
-    Menu.buildFromTemplate([
-      ...Object.entries(names).map(([type, label]) => ({
-        label,
-        type: 'radio' as const,
-        checked:
-          (config.get('plugins.visualizer') as { type?: string })?.type ===
-          type,
-        click: () => config.setPartial('plugins.visualizer', { type }),
-      })),
-      { type: 'separator' },
-      {
-        label: 'MilkDrop presets',
-        submenu: milkdropPresets.map((preset) => ({
-          label: preset,
+    return new Promise<void>((resolve) => {
+      Menu.buildFromTemplate([
+        ...Object.entries(names).map(([type, label]) => ({
+          label,
           type: 'radio' as const,
           checked:
-            (
-              config.get('plugins.visualizer') as {
-                butterchurn?: { preset?: string };
-              }
-            )?.butterchurn?.preset === preset,
-          click: () =>
-            config.setPartial('plugins.visualizer', {
-              type: 'butterchurn',
-              butterchurn: { preset },
-            }),
+            (config.get('plugins.visualizer') as { type?: string })?.type ===
+            type,
+          click: () => config.setPartial('plugins.visualizer', { type }),
         })),
-      },
-      { label: 'Equalizer…', click: () => openSettings(win, 'Equalizer') },
-    ]).popup({ window: win });
+        { type: 'separator' },
+        {
+          label: 'MilkDrop presets',
+          submenu: milkdropPresets.map((preset) => ({
+            label: preset,
+            type: 'radio' as const,
+            checked:
+              (
+                config.get('plugins.visualizer') as {
+                  butterchurn?: { preset?: string };
+                }
+              )?.butterchurn?.preset === preset,
+            click: () =>
+              config.setPartial('plugins.visualizer', {
+                type: 'butterchurn',
+                butterchurn: { preset },
+              }),
+          })),
+        },
+        { label: 'Equalizer…', click: () => openSettings(win, 'Equalizer') },
+      ]).popup({ window: win, callback: () => resolve() });
+    });
   });
   ipcMain.handle('classic:navigate', (event, action: string) => {
     if (event.sender !== win.webContents) return;
@@ -650,8 +652,8 @@ export function setupClassic(win: BrowserWindow) {
         config.set('options.tray', value);
         pendingRestart.add('Tray visibility');
       }
-      if (action === 'trayClickPlayPause' && typeof value === 'boolean')
-        config.set('options.trayClickPlayPause', value);
+      if (action === 'trayClickOpensWindow' && typeof value === 'boolean')
+        config.set('options.trayClickPlayPause', !value);
       if (action === 'animatedSpeakers' && typeof value === 'boolean') {
         config.set('options.animatedSpeakers', value);
         publishActivity();

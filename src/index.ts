@@ -305,9 +305,9 @@ async function createMainWindow() {
 
   const electronWindowSettings: Electron.BrowserWindowConstructorOptions = {
     icon,
-    width: windowSize.width,
+    width: Math.max(700, windowSize.width),
     height: windowSize.height,
-    minWidth: 325,
+    minWidth: 700,
     minHeight: 425,
     backgroundColor: '#000',
     show: false,

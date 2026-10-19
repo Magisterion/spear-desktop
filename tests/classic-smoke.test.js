@@ -132,7 +132,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       0,
     );
     await expect(
-      settings.getByText('Version 3.12.17', { exact: true }),
+      settings.getByText('Version 3.12.18', { exact: true }),
     ).toBeVisible();
     const pin = settings.getByLabel('Always on top', { exact: true });
     const pinButton = player.locator(
@@ -153,7 +153,7 @@ test('Spear preferences use local IPC and portable data', async () => {
     expect(labels[1]).toContain('Starting page');
     await expect(
       settings.getByLabel(
-        'Single click: play/pause; double click: show window (off swaps actions)',
+        'Single click opens the window; double click plays/pauses',
         { exact: true },
       ),
     ).not.toBeChecked();
@@ -658,7 +658,7 @@ test('Spear preferences use local IPC and portable data', async () => {
     });
     await game.addScriptTag({
       content: stripTypeScriptTypes(
-        await fs.readFile(path.join(root, 'src/classic/drive.ts'), 'utf8'),
+        await fs.readFile(path.join(root, 'src/classic/collector.ts'), 'utf8'),
       ).replaceAll('export ', ''),
     });
     await game.addScriptTag({
@@ -1220,47 +1220,56 @@ test('Portable update shows progress, cancels and verifies before offering resta
 });
 
 // Deterministic physical collisions and progression, independent of the canvas.
-test('Pulseflight collects by position, damages on collision, and keeps running', async () => {
+test('Stardrift collects with its trail, clears mines, penalizes misses and reforms', async () => {
   const source = stripTypeScriptTypes(
-    await fs.readFile(path.join(root, 'src/classic/drive.ts'), 'utf8'),
+    await fs.readFile(path.join(root, 'src/classic/collector.ts'), 'utf8'),
   );
-  const { createDrive } = await import(
+  const { createCollector } = await import(
     'data:text/javascript;base64,' + Buffer.from(source).toString('base64')
   );
-  const drive = createDrive(),
-    run = drive.run;
-  drive.beat(0);
-  for (let i = 0; i < 100; i++) drive.step(0.05, true, 120);
-  expect(run.score).toBe(100);
-  for (let i = 0; i < 20; i++) {
-    run.objects.push({ x: 0, z: 0.879, hazard: false, color: 0 });
-    drive.step(0.05, true, 120);
-  }
-  expect(run.score).toBeGreaterThan(1000);
-  const distance = run.distance;
-  drive.step(0.05, true, 120);
-  expect(run.distance).toBeGreaterThan(distance);
-  run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
-  drive.step(0.05, true, 120);
-  expect(run.shield).toBe(65);
-  expect(run.combo).toBe(0);
-  for (let hit = 0; hit < 2; hit++) {
-    run.invulnerable = 0;
-    run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
-    drive.step(0.05, true, 120);
-  }
-  expect(run.shield).toBe(0);
-  const stopped = run.distance;
-  drive.step(0.05, true, 120);
-  expect(run.distance).toBe(stopped);
-  drive.reset();
-  run.target = 0.37;
-  for (let i = 0; i < 20; i++) drive.step(0.05, false, 120);
-  expect(run.x).toBeCloseTo(0.37, 2);
-  expect(run.distance).toBe(0);
-  run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
-  drive.step(0.05, true, 120);
-  expect(run.shield).toBe(100);
+  const game = createCollector(),
+    r = game.run;
+  const shape = (x, y, hazard = false) => ({
+    x,
+    y,
+    hazard,
+    radius: 10,
+    hue: 170,
+    sides: 4,
+    angle: 0,
+  });
+  r.objects.push(shape(0.5, 0.7));
+  game.step(0.001, true, 120, 0.1, false);
+  expect(r.score).toBe(30);
+  r.tail = [
+    { x: 0.2, y: 0.4, age: 0 },
+    { x: 0.2, y: 0.5, age: 0 },
+  ];
+  r.objects.push(shape(0.2, 0.45));
+  game.step(0.001, true, 120, 0.1, false);
+  expect(r.score).toBe(60);
+  r.objects.push(shape(0.1, 1.2));
+  game.step(0.001, true, 120, 0.1, false);
+  expect(r.score).toBe(45);
+  r.charge = 1;
+  r.held = true;
+  r.objects.push(shape(0.6, 0.7, true));
+  game.step(0.01, true, 120, 0.1, false);
+  for (let i = 0; i < 40; i++) game.step(0.016, true, 120, 0.1, false);
+  expect(r.objects).toHaveLength(0);
+  expect(r.mass).toBeGreaterThan(3);
+  r.waves = [];
+  r.invulnerable = 0;
+  r.mass = 2;
+  r.objects.push(shape(r.x, r.y, true));
+  game.step(0.01, true, 120, 0.1, false);
+  expect(r.respawn).toBeGreaterThan(0);
+  for (let i = 0; i < 140; i++) game.step(0.016, true, 120, 0.1, false);
+  expect(r.mass).toBe(3);
+  expect(r.score).toBe(0);
+  const distance = r.distance;
+  game.step(0.5, false, 120, 0.1, false);
+  expect(r.distance).toBe(distance);
 });
 
 test('locked configuration survives startup, merges changes, and flushes recovery', async () => {

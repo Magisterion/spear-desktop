@@ -20,7 +20,7 @@ Manual launches open the player, including the first launch for sign-in. Windows
 - **Retro themes:** eleven original color palettes, including silver decks, phosphor displays and pixel-inspired styles. One selection applies to the music pages, title bar, settings and tray widget.
 - **Live equalizer:** ten live frequency sliders, eight presets, saved custom tuning, a neutral default and automatic headroom for boosts.
 - **More visualizers:** original spectrum, oscilloscope, spectrum history, radial, mirrored, starfield and ribbon modes alongside Pear's existing engines. Classic spectrum by default with optional album artwork behind compatible modes. One compact surface switches between visualization and the original cover/video, with icon controls, fullscreen and a right-click mode selector. Original pipes, polygon trails and glass bubbles recall classic desktop screensavers. The MIT-licensed Butterchurn pack exposes 107 MilkDrop presets with creator credits and optional 45-second cycling.
-- **Prism Run:** an original fullscreen music runner with a faceted crystal, a fixed perspective camera and an unmarked track. Steer with A/D, arrows or the mouse, collect colored crystals, avoid red barriers, and build a score multiplier. Music onsets spawn objects; tempo adjusts speed. The current visualizer and album artwork provide the background, with a bundled fallback. R restarts; Esc or closing the game returns to the player. Music playback is not delayed.
+- **Stardrift:** an original fullscreen music collector. Gather shapes with your core and its glowing trail, grow stronger, avoid red mines, and hold/release the left mouse button for an area-clearing pulse. Missed shapes cost points; a depleted core reforms without stopping music. Tempo and audio energy shape the flow, with the current visualizer and album artwork behind it.
 - **Windows portable releases:** one executable, adjacent local data, and updates from this fork with download progress, cancellation and saved verified downloads for later.
 
 Pear's music player and plugin ecosystem remain the foundation. Spear adds the desktop interface and features above; it does not claim authorship of upstream plugins.
@@ -50,7 +50,7 @@ Only Windows x64 portable artifacts are published. Branches and pull requests pr
 
 - [Pear Desktop](https://github.com/pear-devs/pear-desktop): original application, MIT.
 - Butterchurn, Vudio and Wave retain their upstream licenses and attribution in the bundled dependency notices.
-- Spear's added Canvas visualizers, Prism Run artwork and theme palettes are original implementations under this repository's MIT license. No Winamp skins, logos or proprietary artwork are bundled.
+- Spear's added Canvas visualizers, Stardrift artwork and theme palettes are original implementations under this repository's MIT license. No Winamp skins, logos or proprietary artwork are bundled.
 
 ## Verification notes
 

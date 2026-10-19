@@ -84,7 +84,7 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
   );
 
   // MacOS only
-  tray.setIgnoreDoubleClickEvents(true);
+  tray.setIgnoreDoubleClickEvents(false);
 
   // Delay the single action so a double-click cannot also pause playback.
   let clickTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,17 +101,12 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
   tray.on('click', () => {
     clearClick();
     if (win.isDestroyed()) return;
-    // Showing a window is safe to repeat and need not await a double-click.
-    if (!config.get('options.trayClickPlayPause')) {
-      showWindow();
-      return;
-    }
     clickTimer = setTimeout(() => {
       clickTimer = undefined;
       if (win.isDestroyed()) return;
       if (config.get('options.trayClickPlayPause')) togglePlayback();
       else showWindow();
-    }, 500);
+    }, 350);
   });
   tray.on('double-click', () => {
     clearClick();

@@ -77,7 +77,7 @@ export const defaultConfig: DefaultConfig = {
     disableHardwareAcceleration: false,
     removeUpgradeButton: false,
     restartOnConfigChanges: false,
-    trayClickPlayPause: false,
+    trayClickPlayPause: true,
     autoResetAppCache: false,
     resumeOnStart: true,
     likeButtons: 'force',

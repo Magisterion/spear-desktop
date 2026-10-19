@@ -1,18 +1,16 @@
 {
   "name": "spear",
-  "desktopName": "com.magisterion.spear",
-  "productName": "YouTube Music Spear",
-  "version": "3.12.17",
+  "version": "3.12.18",
   "description": "YouTube Music Spear",
-  "main": "./dist/main/index.js",
-  "type": "module",
   "license": "MIT",
-  "repository": "Magisterion/spear-desktop",
   "author": {
     "name": "th-ch",
     "email": "th-ch@users.noreply.github.com",
     "url": "https://github.com/pear-devs/pear-desktop"
   },
+  "repository": "Magisterion/spear-desktop",
+  "type": "module",
+  "main": "./dist/main/index.js",
   "scripts": {
     "postinstall": "pnpm install-electron",
     "test": "pnpm playwright test",
@@ -35,10 +33,6 @@
     "release:win": "pnpm dist:win:x64",
     "typecheck": "pnpm tsc -p tsconfig.json --noEmit",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck"
-  },
-  "engines": {
-    "node": ">=22",
-    "pnpm": ">=11"
   },
   "dependencies": {
     "@dehoist/romanize-thai": "1.0.0",
@@ -152,8 +146,14 @@
   },
   "auto-changelog": {
     "hideCredit": true,
+    "output": "changelog.md",
     "package": true,
-    "unreleased": true,
-    "output": "changelog.md"
-  }
+    "unreleased": true
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=11"
+  },
+  "desktopName": "com.magisterion.spear",
+  "productName": "YouTube Music Spear"
 }

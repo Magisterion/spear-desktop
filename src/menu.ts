@@ -457,14 +457,13 @@ export const mainMenuTemplate = async (
             },
             { type: 'separator' },
             {
-              label:
-                'Single click: play/pause; double click: show window (off swaps actions)',
+              label: 'Single click opens the window; double click plays/pauses',
               type: 'checkbox',
-              checked: config.get('options.trayClickPlayPause'),
+              checked: !config.get('options.trayClickPlayPause'),
               click(item: MenuItem) {
                 config.setMenuOption(
                   'options.trayClickPlayPause',
-                  item.checked,
+                  !item.checked,
                 );
               },
             },

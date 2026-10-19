@@ -287,7 +287,10 @@ export default createPlugin({
         );
         canvas.title =
           'Click for fullscreen · Right-click to change visualizer';
+        let menuOpen = false;
+        let menuClosedAt = -Infinity;
         const fullscreen = () => {
+          if (menuOpen || performance.now() - menuClosedAt < 200) return;
           if (document.fullscreenElement) void document.exitFullscreen();
           else {
             this.props.stage?.showVisualizer();
@@ -303,7 +306,13 @@ export default createPlugin({
         };
         canvas.oncontextmenu = (e) => {
           e.preventDefault();
-          window.ipcRenderer.invoke('classic:visualizer-menu');
+          menuOpen = true;
+          void window.ipcRenderer
+            .invoke('classic:visualizer-menu')
+            .finally(() => {
+              menuOpen = false;
+              menuClosedAt = performance.now();
+            });
         };
         visualizerContainer?.prepend(canvas);
         const toolbar = document.createElement('div');

@@ -1,7 +1,8 @@
-import { audioMotion } from './audio';
-import { createDrive } from './drive';
+import { audioMotion, getAudioGraph } from './audio';
+import { activity, onActivityChange } from './activity';
+import { createCollector } from './collector';
 
-// Prism Run: fixed perspective, an unmarked surface, and the live player backdrop.
+// Stardrift: vertical flight with the current artwork and live visualizer.
 let closeGame: ((notifyMain?: boolean) => void) | null = null;
 function openGame() {
   if (closeGame) return;
@@ -22,7 +23,7 @@ function openGame() {
   canvas.tabIndex = 0;
   canvas.setAttribute(
     'aria-label',
-    'Prism Run. Steer with arrows, A/D or mouse. Collect colored crystals and avoid red barriers. R restarts; Escape returns.',
+    'Stardrift. Collect shapes with your core and trail. Avoid red mines. Hold left mouse or Space and release for a pulse. Escape returns.',
   );
   const status = document.createElement('span');
   status.id = 'status';
@@ -31,7 +32,7 @@ function openGame() {
   score.id = 'score';
   const footer = document.createElement('footer');
   footer.textContent =
-    '← → / A D / mouse: steer · Collect crystals · Avoid red barriers · R: restart · Esc: return ';
+    'Mouse / arrows: move · Hold LMB / Space, release: pulse · Red mines damage · R: restart · Esc: return ';
   const meter = document.createElement('progress');
   meter.max = 1;
   meter.setAttribute('aria-label', 'Music pulse');
@@ -40,12 +41,39 @@ function openGame() {
   document.body.append(host);
   document.dispatchEvent(new Event('spear:surface-change'));
   const ctx = canvas.getContext('2d')!;
-  const drive = createDrive(),
+  const effects = new Set<OscillatorNode>();
+  const drive = createCollector(() => {
+      const graph = getAudioGraph();
+      if (!graph || graph.audioContext.state !== 'running') return;
+      const audio = graph.audioContext,
+        oscillator = audio.createOscillator(),
+        gain = audio.createGain();
+      const video = document.querySelector('video');
+      oscillator.frequency.setValueAtTime(220, audio.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(
+        440,
+        audio.currentTime + 0.5,
+      );
+      gain.gain.setValueAtTime(
+        video?.muted ? 0 : 0.035 * (video?.volume ?? 1),
+        audio.currentTime,
+      );
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.5);
+      oscillator.connect(gain);
+      gain.connect(audio.destination);
+      effects.add(oscillator);
+      oscillator.onended = () => {
+        effects.delete(oscillator);
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.55);
+    }),
     run = drive.run;
   const cover = new Image();
   let coverUrl = '';
   let nextArtworkCheck = 0;
-  const colors = ['#91ffe3', '#b6a0ff', '#ffd18c', '#70bcff'];
   let width = 960,
     height = 600,
     raf = 0,
@@ -65,11 +93,34 @@ function openGame() {
   });
   resize.observe(host);
   const held = new Set<string>();
-  const keyup = (event: KeyboardEvent) => held.delete(event.key.toLowerCase());
-  const clearKeys = () => held.clear();
+  let charging = false;
+  const keyup = (event: KeyboardEvent) => {
+    held.delete(event.key.toLowerCase());
+    if (event.key === ' ') charging = false;
+  };
+  const clearKeys = () => {
+    held.clear();
+    charging = false;
+    run.held = false;
+    run.charge = 0;
+  };
   const keydown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
-    if (!['escape', 'r', 'a', 'd', 'arrowleft', 'arrowright'].includes(key))
+    if (
+      ![
+        'escape',
+        'r',
+        'a',
+        'd',
+        'w',
+        's',
+        'arrowleft',
+        'arrowright',
+        'arrowup',
+        'arrowdown',
+        ' ',
+      ].includes(key)
+    )
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -77,22 +128,42 @@ function openGame() {
     else if (key === 'r') {
       drive.reset();
       lastBeat = audioMotion.beat;
-    } else held.add(key);
+    } else {
+      held.add(key);
+      if (key === ' ') charging = true;
+    }
   };
-  let pointerPosition = 0;
   canvas.onpointermove = (event) => {
-    const position =
-      document.pointerLockElement === canvas ||
-      root.pointerLockElement === canvas
-        ? pointerPosition + event.movementX / Math.max(200, width * 0.35)
-        : (event.clientX / width - 0.5) * 2.6;
-    pointerPosition = Math.max(-0.99, Math.min(0.99, position));
-    run.target = Math.max(-0.9, Math.min(0.9, pointerPosition));
+    const locked = root.pointerLockElement === canvas;
+    run.targetX = Math.max(
+      0.035,
+      Math.min(
+        0.965,
+        locked ? run.targetX + event.movementX / width : event.clientX / width,
+      ),
+    );
+    run.targetY = Math.max(
+      0.15,
+      Math.min(
+        0.9,
+        locked
+          ? run.targetY + event.movementY / height
+          : event.clientY / height,
+      ),
+    );
   };
   canvas.onpointerdown = (event) => {
+    if (event.button !== 0) return;
+    charging = true;
     if (event.pointerType !== 'touch')
       void canvas.requestPointerLock()?.catch(() => {});
+    else canvas.setPointerCapture(event.pointerId);
   };
+  const pointerUp = () => {
+    charging = false;
+  };
+  window.addEventListener('pointerup', pointerUp);
+  canvas.onpointercancel = clearKeys;
   let hadPointerLock = false;
   const pointerLockChanged = () => {
     const locked = root.pointerLockElement === canvas;
@@ -107,7 +178,17 @@ function openGame() {
   void canvas.requestPointerLock()?.catch(() => {});
   closeGame = (notifyMain = true) => {
     cancelAnimationFrame(raf);
+    stopActivity();
+    document.removeEventListener('play', wake, true);
+    document.removeEventListener('pause', wake, true);
+    document.removeEventListener('ended', wake, true);
     resize.disconnect();
+    window.removeEventListener('pointerup', pointerUp);
+    for (const oscillator of effects) {
+      try {
+        oscillator.stop();
+      } catch {}
+    }
     document.removeEventListener('pointerlockchange', pointerLockChanged);
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('keyup', keyup, true);
@@ -126,45 +207,28 @@ function openGame() {
     if (notifyMain)
       void window.ipcRenderer.invoke('classic:navigate', 'game-exit');
   };
-  const project = (x: number, z: number) => {
-    const depth = 0.04 + 0.96 * z * z;
-    return {
-      x: width / 2 + x * width * 0.42 * depth,
-      y: height * (0.24 + 0.65 * depth),
-      scale: depth,
-    };
-  };
-  const polygon = (
-    points: { x: number; y: number }[],
-    fill: string | CanvasGradient,
-    stroke?: string,
-  ) => {
-    ctx.beginPath();
-    points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    if (stroke) {
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-  };
   function frame(time: number) {
     // Keep the loop alive even if a transient artwork/video frame cannot render.
-    raf = requestAnimationFrame(frame);
+    raf = 0;
+    const media = document.querySelector('video');
+    if (activity.visible && media && !media.paused && !media.ended)
+      raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
     const steering =
       Number(held.has('d') || held.has('arrowright')) -
       Number(held.has('a') || held.has('arrowleft'));
-    if (steering) {
-      run.target = Math.max(
-        -0.9,
-        Math.min(0.9, run.target + steering * dt * 1.8),
-      );
-      pointerPosition = run.target;
-    }
+    run.targetX = Math.max(
+      0.035,
+      Math.min(0.965, run.targetX + steering * dt * 0.7),
+    );
+    const vertical =
+      Number(held.has('s') || held.has('arrowdown')) -
+      Number(held.has('w') || held.has('arrowup'));
+    run.targetY = Math.max(
+      0.15,
+      Math.min(0.9, run.targetY + vertical * dt * 0.7),
+    );
     const video = document.querySelector('video');
     const track =
       document
@@ -181,8 +245,9 @@ function openGame() {
     }
     lastMediaTime = video?.currentTime ?? 0;
     const active =
-      audioMotion.active ||
-      !!(video && !video.paused && !video.ended && video.readyState >= 2);
+      activity.visible &&
+      (audioMotion.active ||
+        !!(video && !video.paused && !video.ended && video.readyState >= 2));
     const beatInterval = 60 / Math.max(60, Math.min(180, audioMotion.bpm));
     const musicTime = video?.currentTime || audioMotion.time;
     const onset = audioMotion.beat !== lastBeat;
@@ -200,12 +265,11 @@ function openGame() {
       pulse = 1;
     }
     lastBeat = audioMotion.beat;
-    drive.step(dt, active, audioMotion.bpm);
+    drive.step(dt, active, audioMotion.bpm, audioMotion.energy, charging);
     status.textContent = active
-      ? track || 'Prism Run'
+      ? track || 'Stardrift'
       : 'Play music to bring the track to life';
-    const shield = Math.max(0, Math.min(3, Math.ceil(run.shield / 35)));
-    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${'◆'.repeat(shield)}${'◇'.repeat(3 - shield)}`;
+    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 15))} · ${run.respawn > 0 ? 'Reforming…' : 'Core ' + run.mass.toFixed(1)} · ${run.cooldown > 0 ? 'Pulse ' + run.cooldown.toFixed(1) + 's' : 'Charge ' + Math.round(run.charge * 100) + '%'}`;
     meter.value = Math.max(audioMotion.bass, audioMotion.energy);
     pulse = Math.max(0, pulse - dt * 3);
     ctx.fillStyle = '#090b17';
@@ -265,157 +329,19 @@ function openGame() {
         ctx.stroke();
       }
     }
-    // No lane markings, scrolling grid, roadside posts, camera sway, or zoom.
-    // Depth comes only from approaching objects and these stationary edges.
-    const road = ctx.createLinearGradient(0, height * 0.26, 0, height * 0.6);
-    road.addColorStop(0, '#0a102400');
-    road.addColorStop(0.65, '#0a102499');
-    road.addColorStop(1, '#0a1024c9');
-    polygon(
-      [
-        project(-1.12, 0),
-        project(1.12, 0),
-        project(1.12, 1.13),
-        project(-1.12, 1.13),
-      ],
-      road,
-    );
-    for (const x of [-1.12, 1.12]) {
-      const a = project(x, 0),
-        b = project(x, 1.13);
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      const edge = ctx.createLinearGradient(0, height * 0.26, 0, height * 0.65);
-      edge.addColorStop(0, '#ac9aff00');
-      edge.addColorStop(1, '#ac9aff50');
-      ctx.strokeStyle = edge;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-    for (const object of [...run.objects].sort((a, b) => a.z - b.z)) {
-      const p = project(object.x, object.z),
-        size = Math.max(
-          3,
-          width * (object.kind === 'barrier' ? 0.048 : 0.027) * p.scale,
-        );
-      const color = object.hazard ? '#ff526c' : colors[object.color];
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
-      if (object.hazard && object.kind === 'mine') {
-        ctx.fillStyle = '#531527';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y - size, size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#ffb8c0';
-        ctx.fillRect(p.x - 2, p.y - size - 2, 4, 4);
-      } else if (object.hazard) {
-        polygon(
-          [
-            { x: p.x - size, y: p.y },
-            { x: p.x - size, y: p.y - size * 1.4 },
-            { x: p.x + size, y: p.y - size * 1.4 },
-            { x: p.x + size, y: p.y },
-          ],
-          '#531527',
-          color,
-        );
-        ctx.strokeStyle = '#ffbac6';
-        ctx.beginPath();
-        ctx.moveTo(p.x - size * 0.5, p.y - size * 0.25);
-        ctx.lineTo(p.x + size * 0.5, p.y - size * 1.1);
-        ctx.moveTo(p.x + size * 0.5, p.y - size * 0.25);
-        ctx.lineTo(p.x - size * 0.5, p.y - size * 1.1);
-        ctx.stroke();
-      } else
-        polygon(
-          [
-            { x: p.x, y: p.y - size * 1.8 },
-            { x: p.x + size * 0.7, y: p.y - size * 0.9 },
-            { x: p.x, y: p.y },
-            { x: p.x - size * 0.7, y: p.y - size * 0.9 },
-          ],
-          color,
-          '#e5ffff',
-        );
-      ctx.shadowBlur = 0;
-    }
-    const prism = project(run.x, 0.88),
-      size = Math.max(18, Math.min(34, width * 0.027)),
-      prismColor =
-        colors[Math.max(0, Math.min(2, Math.round(run.target / 0.66) + 1))];
-    if (run.shield > 0) {
-      ctx.globalAlpha =
-        run.invulnerable > 0 ? 0.6 + Math.sin(time * 0.03) * 0.3 : 1;
-      const tail = size + audioMotion.energy * 25 + Math.min(40, run.combo);
-      polygon(
-        [
-          { x: prism.x - 8, y: prism.y },
-          { x: prism.x, y: prism.y + tail },
-          { x: prism.x + 8, y: prism.y },
-        ],
-        prismColor + '40',
-      );
-      ctx.shadowColor = prismColor;
-      ctx.shadowBlur = 22;
-      polygon(
-        [
-          { x: prism.x, y: prism.y - size },
-          { x: prism.x + size * 0.63, y: prism.y },
-          { x: prism.x, y: prism.y + size },
-          { x: prism.x - size * 0.63, y: prism.y },
-        ],
-        prismColor,
-      );
-      ctx.shadowBlur = 0;
-      polygon(
-        [
-          { x: prism.x, y: prism.y - size },
-          { x: prism.x, y: prism.y + size },
-          { x: prism.x - size * 0.63, y: prism.y },
-        ],
-        '#ffffff55',
-      );
-      polygon(
-        [
-          { x: prism.x, y: prism.y - size },
-          { x: prism.x + size * 0.63, y: prism.y },
-          { x: prism.x, y: prism.y },
-        ],
-        '#ffffffaa',
-      );
-      ctx.globalAlpha = 1;
-    }
-    for (const burst of run.bursts) {
-      const p = project(burst.x, 0.88);
-      for (let i = 0; i < 16; i++) {
-        const a = (i * Math.PI) / 8,
-          d = burst.age * (burst.hazard ? 180 : 100);
-        ctx.globalAlpha = 1 - burst.age / 0.8;
-        ctx.fillStyle = burst.hazard ? '#ff7759' : '#b9ffff';
-        ctx.fillRect(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, 5, 5);
-      }
-      ctx.globalAlpha = 1;
-    }
-    if (run.shield <= 0) {
-      ctx.fillStyle = '#071020d9';
-      ctx.fillRect(width * 0.15, height * 0.4, width * 0.7, 100);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 24px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('SHIELD DEPLETED', width / 2, height * 0.4 + 38);
-      ctx.font = '16px system-ui';
-      ctx.fillText(
-        'Press R to restart · Esc to return',
-        width / 2,
-        height * 0.4 + 72,
-      );
-    }
+    drive.draw(ctx, width, height);
   }
-  raf = requestAnimationFrame(frame);
+
+  const wake = () => {
+    cancelAnimationFrame(raf);
+    lastTime = performance.now();
+    raf = requestAnimationFrame(frame);
+  };
+  const stopActivity = onActivityChange(wake);
+  document.addEventListener('play', wake, true);
+  document.addEventListener('pause', wake, true);
+  document.addEventListener('ended', wake, true);
+  wake();
 }
 window.ipcRenderer.on('classic:game', openGame);
 // Main already restored the window. Do not echo an exit into a newer session.
