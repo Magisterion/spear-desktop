@@ -6,7 +6,9 @@ This is an independent fork, not an official Google or YouTube application. Cred
 
 ## Windows x64, portable by default
 
-Download **YouTube-Music-Spear.exe** from this repository's [Releases](https://github.com/Magisterion/spear-desktop/releases). Put it in a writable folder and run it. There is no installer and no administrator access is required.
+Download **YouTube-Music-Spear.exe** from this repository's [Releases](https://github.com/weirdthoughts/spear-desktop/releases). Put it in a writable folder and run it. There is no installer and no administrator access is required.
+
+If an older version reports "Unexpected release download address" after the repository move, download the latest EXE from the link above, quit Spear, and replace the existing EXE in the same folder. Keep your Data folder. Subsequent updates use the new repository address.
 
 Settings, sign-in session, cache and logs live in a **data** folder next to the executable. Keep that folder when upgrading or moving the app. It contains private account data: never commit, publish or share it. Releases are built from tracked source on a clean GitHub Actions runner, not from a developer's local profile.
 

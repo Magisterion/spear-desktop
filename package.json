@@ -8,7 +8,7 @@
     "email": "th-ch@users.noreply.github.com",
     "url": "https://github.com/pear-devs/pear-desktop"
   },
-  "repository": "Magisterion/spear-desktop",
+  "repository": "weirdthoughts/spear-desktop",
   "type": "module",
   "main": "./dist/main/index.js",
   "scripts": {

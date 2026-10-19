@@ -18,7 +18,7 @@ import { gt, valid } from 'semver';
 import updatePage from './updater.html?asset';
 import updatePreload from './updater-preload.cjs?asset';
 
-const repository = 'Magisterion/spear-desktop';
+const repository = 'weirdthoughts/spear-desktop';
 const assetName = 'YouTube-Music-Spear.exe';
 type Phase =
   | 'checking'

@@ -30,5 +30,5 @@ directories:
   output: ./pack/
 publish:
   provider: github
-  owner: Magisterion
+  owner: weirdthoughts
   repo: spear-desktop

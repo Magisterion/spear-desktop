@@ -107,7 +107,7 @@ test('Spear preferences use local IPC and portable data', async () => {
     ).toBeVisible();
     await settings.getByRole('button', { name: 'Themes', exact: true }).click();
     await expect(settings.locator('#content article').last()).toContainText(
-      'Album color theme',
+      'Album Color Theme',
     );
     await expect(
       settings
@@ -184,11 +184,11 @@ test('Spear preferences use local IPC and portable data', async () => {
     await settings
       .getByRole('button', { name: 'Appearance', exact: true })
       .click();
-    await expect(settings.locator('#content details')).toHaveCount(0);
     const likes = settings.locator('#content article').filter({
       has: settings.getByRole('heading', { name: 'Like buttons', exact: true }),
     });
     await expect(likes).toBeVisible();
+    await expect(likes.locator('details')).toHaveCount(0);
     await expect(likes.locator('input[type="radio"]')).toHaveCount(3);
     await expect(
       settings
@@ -1062,8 +1062,11 @@ test('Portable update shows progress, cancels and verifies before offering resta
         const original = net.fetch.bind(net);
         net.fetch = async (url, options) => {
           const base =
-            'https://github.com/Magisterion/spear-desktop/releases/download/v9.9.9/';
-          if (String(url).endsWith('/releases/latest'))
+            'https://github.com/weirdthoughts/spear-desktop/releases/download/v9.9.9/';
+          if (
+            String(url) ===
+            'https://api.github.com/repos/weirdthoughts/spear-desktop/releases/latest'
+          )
             return new Response(
               JSON.stringify({
                 tag_name: 'v9.9.9',

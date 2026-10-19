@@ -637,7 +637,7 @@ export function setupClassic(win: BrowserWindow) {
       }
       if (action === 'project')
         return shell.openExternal(
-          'https://github.com/Magisterion/spear-desktop',
+          'https://github.com/weirdthoughts/spear-desktop',
         );
       if (action === 'upstream')
         return shell.openExternal('https://github.com/pear-devs/pear-desktop');
