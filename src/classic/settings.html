@@ -365,20 +365,24 @@
           row.className = 'row';
           row.append(language);
           a.append(row);
-          data.general
-            .filter(
-              (c) => !query || JSON.stringify(c).toLowerCase().includes(query),
-            )
-            .forEach((c) => control(c, a));
-          for (const [key, text] of [
-            [
-              'minimizeOnAutoStart',
-              'Start minimized to tray when Windows starts',
-            ],
-            ['tray', 'Show tray icon'],
-            ['animatedSpeakers', 'Animated speakers in tray widget'],
-            ['trayPinned', 'Keep tray widget open above other windows'],
-          ]) {
+          const matches = (c) =>
+            !query || JSON.stringify(c).toLowerCase().includes(query);
+          const used = new Set();
+          const option = (id, parent) => {
+            const c = data.general.find((c) => c.menuId === id);
+            if (c) {
+              used.add(c.id);
+              if (matches(c)) control(c, parent);
+            }
+          };
+          const group = (title) => {
+            const article = el('article');
+            article.append(el('h2', title));
+            content.append(article);
+            return article;
+          };
+          const toggle = (parent, key, text) => {
+            if (query && !text.toLowerCase().includes(query)) return;
             const row = el('label', text);
             row.className = 'row';
             const box = el('input');
@@ -386,20 +390,54 @@
             box.checked = data[key];
             box.onchange = () => request(key, box.checked);
             row.append(box);
-            a.append(row);
-          }
-          const updatesRow = el('label', 'Check for updates at startup');
+            parent.append(row);
+          };
+          option('classic-start-page', a);
+          option('classic-single-instance', a);
+          content.append(a);
+          const startup = group('Startup');
+          option('classic-autostart', startup);
+          toggle(
+            startup,
+            'minimizeOnAutoStart',
+            'Start minimized to tray when Windows starts',
+          );
+          option('classic-resume', startup);
+          const windows = group('Windows & tray');
+          option('classic-pin', windows);
+          toggle(
+            windows,
+            'trayPinned',
+            'Keep tray widget open above other windows',
+          );
+          toggle(windows, 'tray', 'Show tray icon');
+          toggle(
+            windows,
+            'trayClickPlayPause',
+            'Single click: play/pause; double click: show window (off swaps actions)',
+          );
+          toggle(
+            windows,
+            'animatedSpeakers',
+            'Animated speakers in tray widget',
+          );
+          const advanced = group('Compatibility & maintenance');
+          data.general.forEach((c) => {
+            if (used.has(c.id)) return;
+            if (c.menuId === 'classic-advanced')
+              c.children
+                ?.filter(matches)
+                .forEach((child) => control(child, advanced));
+            else if (matches(c)) control(c, advanced);
+          });
+          const updates = group('Updates');
+          toggle(updates, 'autoUpdates', 'Check for updates at startup');
+          const updatesRow = el('div');
           updatesRow.className = 'row';
-          const automatic = el('input');
-          automatic.type = 'checkbox';
-          automatic.checked = data.autoUpdates;
-          automatic.onchange = () => request('autoUpdates', automatic.checked);
-          updatesRow.append(automatic);
-          a.append(updatesRow);
           const update = el('button', 'Check for updates');
           update.onclick = () => request('update');
-          a.append(update);
-          content.append(a);
+          updatesRow.append(update, el('span', `Version ${data.version}`));
+          updates.append(updatesRow);
         }
         if (tab === 'Themes' && !query) {
           const a = el('article');
@@ -610,6 +648,7 @@
       });
       $('search').oninput = () => draw();
       $('restart').onclick = () => request('restart');
+      window.classic.onRefresh(() => request('snapshot'));
       request('snapshot');
     </script>
   </body>

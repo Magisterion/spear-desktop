@@ -80,7 +80,7 @@ export const defaultConfig: DefaultConfig = {
     trayClickPlayPause: true,
     autoResetAppCache: false,
     resumeOnStart: true,
-    likeButtons: '',
+    likeButtons: 'force',
     swapLikeButtonsOrder: false,
     proxy: '',
     startingPage: '',

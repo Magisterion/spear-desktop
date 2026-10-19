@@ -76,11 +76,17 @@ export const TitleBar = (props: TitleBarProps) => {
     void window.ipcRenderer
       .invoke('classic:navigate', 'pin-state')
       .then((value) => setPinned(!!value));
+    window.ipcRenderer.on('classic:pin-state', (_event, value) =>
+      setPinned(!!value),
+    );
     window.addEventListener('mousemove', listener);
     props.ipc.on('window-maximize', refetchMaximize);
     props.ipc.on('window-unmaximize', refetchMaximize);
   });
-  onCleanup(() => window.removeEventListener('mousemove', listener));
+  onCleanup(() => {
+    window.removeEventListener('mousemove', listener);
+    window.ipcRenderer.removeAllListeners('classic:pin-state');
+  });
   return (
     <nav
       class={titleStyle()}
@@ -100,14 +106,14 @@ export const TitleBar = (props: TitleBarProps) => {
               'Settings',
             ],
             [
-              'game',
-              'M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01',
-              'Prism Run',
-            ],
-            [
               'visualizer',
               'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 12h2l2-4 2 8 2-4',
               'Fullscreen visualizer',
+            ],
+            [
+              'game',
+              'M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01',
+              'Prism Run',
             ],
             ['pin', 'M8 3h8l-1 7 4 4H5l4-4Z M12 14v7', 'Always on top'],
             ['back', 'M19 12H5m6-6-6 6 6 6', 'Back'],

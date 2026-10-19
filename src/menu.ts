@@ -169,6 +169,7 @@ export const mainMenuTemplate = async (
           },
         },
         {
+          id: 'classic-resume',
           label: t('main.menu.options.submenu.resume-on-start'),
           type: 'checkbox',
           checked: config.get('options.resumeOnStart'),
@@ -177,6 +178,7 @@ export const mainMenuTemplate = async (
           },
         },
         {
+          id: 'classic-start-page',
           label: t('main.menu.options.submenu.starting-page.label'),
           submenu: (() => {
             const subMenuArray: Electron.MenuItemConstructorOptions[] =
@@ -372,6 +374,7 @@ export const mainMenuTemplate = async (
           ],
         },
         {
+          id: 'classic-single-instance',
           label: t('main.menu.options.submenu.single-instance-lock'),
           type: 'checkbox',
           checked: true,
@@ -384,6 +387,7 @@ export const mainMenuTemplate = async (
           },
         },
         {
+          id: 'classic-pin',
           label: t('main.menu.options.submenu.always-on-top'),
           type: 'checkbox',
           checked: config.get('options.alwaysOnTop'),
@@ -392,34 +396,12 @@ export const mainMenuTemplate = async (
             win.setAlwaysOnTop(item.checked);
           },
         },
-        ...((is.windows() || is.linux()
-          ? [
-              {
-                label: t('main.menu.options.submenu.hide-menu.label'),
-                type: 'checkbox',
-                checked: config.get('options.hideMenu'),
-                click(item) {
-                  config.setMenuOption('options.hideMenu', item.checked);
-                  if (item.checked && !config.get('options.hideMenuWarned')) {
-                    dialog.showMessageBox(win, {
-                      type: 'info',
-                      title: t(
-                        'main.menu.options.submenu.hide-menu.dialog.title',
-                      ),
-                      message: t(
-                        'main.menu.options.submenu.hide-menu.dialog.message',
-                      ),
-                    });
-                  }
-                },
-              },
-            ]
-          : []) satisfies Electron.MenuItemConstructorOptions[]),
         ...((is.windows() || is.macOS()
           ? // Only works on Win/Mac
             // https://www.electronjs.org/docs/api/app#appsetloginitemsettingssettings-macos-windows
             [
               {
+                id: 'classic-autostart',
                 label: t('main.menu.options.submenu.start-at-login'),
                 type: 'checkbox',
                 checked: config.get('options.startAtLogin'),
@@ -519,6 +501,7 @@ export const mainMenuTemplate = async (
         },
         { type: 'separator' },
         {
+          id: 'classic-advanced',
           label: t('main.menu.options.submenu.advanced-options.label'),
           submenu: [
             {

@@ -11,7 +11,15 @@ export function createDrive() {
     sequence: 0,
     path: 0,
     invulnerable: 0,
-    objects: [] as { x: number; z: number; hazard: boolean; color: number }[],
+    objects: [] as {
+      x: number;
+      z: number;
+      hazard: boolean;
+      color: number;
+      kind?: 'barrier' | 'mine' | 'sweeper';
+      radius?: number;
+      origin?: number;
+    }[],
     bursts: [] as { x: number; age: number; hazard: boolean }[],
   };
   return {
@@ -32,26 +40,35 @@ export function createDrive() {
       run.objects = [];
       run.bursts = [];
     },
-    beat(band: number) {
+    beat(band: number, intensity = 0) {
       if (run.shield <= 0) return;
-      // Adjacent moves only, with a clear collectible path through every row.
-      if (run.sequence % 3 === 2)
-        run.path = Math.max(-1, Math.min(1, run.path + (band % 2 ? 1 : -1)));
-      run.objects.push({
-        x: run.path * 0.66,
-        z: 0,
-        hazard: false,
-        color: band % 4,
-      });
-      if (run.sequence++ % 4 === 3) {
-        const obstacleLane = run.path === 0 ? (band % 2 ? -1 : 1) : -run.path;
+      // A continuous, reachable ribbon of pickups instead of discrete lanes.
+      run.path = Math.sin(run.sequence * 0.25) * 0.68;
+      const color = (Math.max(0, band) + Math.floor(run.sequence / 4)) % 4;
+      run.objects.push({ x: run.path, z: 0, hazard: false, color });
+      if (intensity > 0.65)
         run.objects.push({
-          x: obstacleLane * 0.66,
+          x: Math.sin((run.sequence + 0.3) * 0.25) * 0.68,
+          z: -0.05,
+          hazard: false,
+          color,
+        });
+      if (run.sequence % 4 === 3) {
+        const kind = (['barrier', 'mine', 'sweeper'] as const)[
+          Math.floor(run.sequence / 4) % 3
+        ];
+        const x = run.path >= 0 ? -0.65 : 0.65;
+        run.objects.push({
+          x,
+          origin: x,
           z: 0,
           hazard: true,
           color: 0,
+          kind,
+          radius: kind === 'barrier' ? 0.25 : 0.16,
         });
       }
+      run.sequence++;
     },
     step(seconds: number, active: boolean, bpm: number) {
       const dt = Math.max(0, Math.min(0.05, seconds));
@@ -69,8 +86,11 @@ export function createDrive() {
       run.invulnerable = Math.max(0, run.invulnerable - dt);
       for (const object of run.objects) {
         object.z += dt * run.speed;
+        if (object.kind === 'sweeper')
+          object.x =
+            (object.origin ?? object.x) + Math.sin(object.z * 10) * 0.12;
         if (object.z < 0.88) continue;
-        const collected = Math.abs(object.x - run.x) < 0.27;
+        const collected = Math.abs(object.x - run.x) < (object.radius ?? 0.22);
         if (collected) {
           if (object.hazard && run.invulnerable === 0) {
             run.shield = Math.max(0, run.shield - 35);

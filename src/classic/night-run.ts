@@ -63,6 +63,9 @@ function openGame() {
     ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
   });
   resize.observe(host);
+  const held = new Set<string>();
+  const keyup = (event: KeyboardEvent) => held.delete(event.key.toLowerCase());
+  const clearKeys = () => held.clear();
   const keydown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
     if (!['escape', 'r', 'a', 'd', 'arrowleft', 'arrowright'].includes(key))
@@ -73,12 +76,7 @@ function openGame() {
     else if (key === 'r') {
       drive.reset();
       lastBeat = audioMotion.beat;
-    } else if (!event.repeat) {
-      const direction = key === 'a' || key === 'arrowleft' ? -1 : 1;
-      run.target =
-        Math.max(-1, Math.min(1, Math.round(run.target / 0.66) + direction)) *
-        0.66;
-    }
+    } else held.add(key);
   };
   let pointerPosition = 0;
   canvas.onpointermove = (event) => {
@@ -88,8 +86,7 @@ function openGame() {
         ? pointerPosition + event.movementX / Math.max(200, width * 0.35)
         : (event.clientX / width - 0.5) * 2.6;
     pointerPosition = Math.max(-0.99, Math.min(0.99, position));
-    run.target =
-      Math.max(-1, Math.min(1, Math.round(pointerPosition / 0.66))) * 0.66;
+    run.target = Math.max(-0.9, Math.min(0.9, pointerPosition));
   };
   canvas.onpointerdown = (event) => {
     if (event.pointerType !== 'touch')
@@ -103,6 +100,8 @@ function openGame() {
   };
   document.addEventListener('pointerlockchange', pointerLockChanged);
   document.addEventListener('keydown', keydown, true);
+  document.addEventListener('keyup', keyup, true);
+  window.addEventListener('blur', clearKeys);
   canvas.focus();
   void canvas.requestPointerLock()?.catch(() => {});
   closeGame = () => {
@@ -110,6 +109,8 @@ function openGame() {
     resize.disconnect();
     document.removeEventListener('pointerlockchange', pointerLockChanged);
     document.removeEventListener('keydown', keydown, true);
+    document.removeEventListener('keyup', keyup, true);
+    window.removeEventListener('blur', clearKeys);
     if (
       document.pointerLockElement === host ||
       root.pointerLockElement === canvas
@@ -151,6 +152,16 @@ function openGame() {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
+    const steering =
+      Number(held.has('d') || held.has('arrowright')) -
+      Number(held.has('a') || held.has('arrowleft'));
+    if (steering) {
+      run.target = Math.max(
+        -0.9,
+        Math.min(0.9, run.target + steering * dt * 1.8),
+      );
+      pointerPosition = run.target;
+    }
     const video = document.querySelector('video');
     const track =
       document
@@ -176,11 +187,12 @@ function openGame() {
     // on the media clock, with colors from the live spectrum, instead of an empty road.
     if (
       active &&
-      (onset ||
+      ((onset && musicTime - lastSpawnTime >= 0.16) ||
         lastSpawnTime < 0 ||
-        musicTime - lastSpawnTime >= beatInterval * 1.5)
+        musicTime - lastSpawnTime >=
+          beatInterval * (audioMotion.energy > 0.18 ? 0.5 : 1))
     ) {
-      drive.beat(audioMotion.band);
+      drive.beat(audioMotion.band, audioMotion.energy);
       lastSpawnTime = musicTime;
       pulse = 1;
     }
@@ -225,7 +237,7 @@ function openGame() {
     let hasBackground = false;
     if (visualizer && visualizer.width && visualizer.height) {
       try {
-        ctx.globalAlpha = 0.45;
+        ctx.globalAlpha = 0.25;
         ctx.globalCompositeOperation = 'screen';
         ctx.drawImage(visualizer, 0, 0, width, height);
         hasBackground = true;
@@ -280,11 +292,24 @@ function openGame() {
     }
     for (const object of [...run.objects].sort((a, b) => a.z - b.z)) {
       const p = project(object.x, object.z),
-        size = Math.max(3, width * 0.027 * p.scale);
+        size = Math.max(
+          3,
+          width * (object.kind === 'barrier' ? 0.048 : 0.027) * p.scale,
+        );
       const color = object.hazard ? '#ff526c' : colors[object.color];
       ctx.shadowColor = color;
       ctx.shadowBlur = 10;
-      if (object.hazard) {
+      if (object.hazard && object.kind === 'mine') {
+        ctx.fillStyle = '#531527';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - size, size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ffb8c0';
+        ctx.fillRect(p.x - 2, p.y - size - 2, 4, 4);
+      } else if (object.hazard) {
         polygon(
           [
             { x: p.x - size, y: p.y },

@@ -124,6 +124,33 @@ test('Spear preferences use local IPC and portable data', async () => {
     const player = app
       .windows()
       .find((w) => w.url().startsWith('https://music.youtube.com'));
+    await settings
+      .getByRole('button', { name: 'General', exact: true })
+      .click();
+    await expect(settings.locator('#content details')).toHaveCount(0);
+    await expect(settings.getByText('Hide menu', { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(
+      settings.getByText('Version 3.12.16', { exact: true }),
+    ).toBeVisible();
+    const pin = settings.getByLabel('Always on top', { exact: true });
+    const pinButton = player.locator(
+      '#ytmd-title-bar-main-panel button[aria-label="Always on top"]',
+    );
+    await expect(pin).not.toBeChecked();
+    await pin.check();
+    await expect(pinButton).toHaveAttribute('aria-pressed', 'true');
+    await pinButton.evaluate((button) => button.click());
+    await expect(pin).not.toBeChecked();
+    await expect(pinButton).toHaveAttribute('aria-pressed', 'false');
+    const labels = await settings
+      .locator('#content article')
+      .first()
+      .locator('label')
+      .allTextContents();
+    expect(labels[0]).toContain('Language');
+    expect(labels[1]).toContain('Starting page');
     // Native navigation must route within the existing page, retaining its media state.
     await player.evaluate(() => {
       const app = document.querySelector('ytmusic-app');
@@ -245,6 +272,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       #mini-guide-spacer.ytmusic-app { margin-top:64px; }
       #mini-guide button { display:block;width:72px;height:72px; }
       [slot='nav-bar'] { position:fixed;top:0;left:0;height:64px;width:100%;z-index:5;background:#152332; }
+      ytmusic-app-layout > [slot='player-bar'] {position:fixed;bottom:0;left:0;height:72px;width:calc(100vw - 15px);}
       ytmusic-player-page { position:fixed;top:64px;left:var(--ytmusic-guide-width);width:calc(100% - var(--ytmusic-guide-width));padding:24px; }
       #columns { display:flex;gap:32px;height:100%; }
       #main-panel { flex:1;min-width:0;display:flex;align-items:center;justify-content:center; }
@@ -259,7 +287,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       <ytmusic-app-layout id="layout"><div slot="nav-bar">YouTube Music</div><ytmusic-player-page slot="player-page"><div id="columns">
       <div id="main-panel"><div id="player-container"><ytmusic-player id="player" player-ui-state="PLAYER_PAGE"><div id="song-image"><div id="thumbnail"><img alt="Album artwork" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Crect width='320' height='320' fill='%234579a2'/%3E%3Ccircle cx='160' cy='160' r='100' fill='%23efc579'/%3E%3C/svg%3E"></div></div></ytmusic-player></div>
       <section id="spear-visualizer-stage"><canvas id="visualizer"></canvas><div id="spear-visualizer-tools"><button aria-label="Visualizer">V</button><button aria-label="Equalizer">E</button><button aria-label="Fullscreen">F</button><button class="player-action">↕</button><button class="mini-action" aria-label="Close mini">×</button></div></section></div>
-      <div id="side-panel">Queue</div></div></ytmusic-player-page></ytmusic-app-layout></ytmusic-app>`,
+      <div id="side-panel">Queue</div></div></ytmusic-player-page><ytmusic-player-bar slot="player-bar"></ytmusic-player-bar></ytmusic-app-layout></ytmusic-app>`,
     );
     await app.evaluate(({ BrowserWindow }, file) => {
       const win = new BrowserWindow({ width: 720, height: 900 });
@@ -291,6 +319,14 @@ test('Spear preferences use local IPC and portable data', async () => {
     };
     await overlayMatchesPlayer();
     expect((await bounds('#player')).height).toBe(180);
+    const barBounds = await bounds('ytmusic-player-bar');
+    expect(
+      Math.abs(
+        barBounds.x +
+          barBounds.width -
+          (await layout.evaluate(() => innerWidth)),
+      ),
+    ).toBeLessThan(1);
     await expect(layout.locator('#mini-guide')).not.toBeVisible();
     // Stage events must never trigger the native player play/pause handler.
     await layout.evaluate(() => {
@@ -1023,9 +1059,9 @@ test('Pulseflight collects by position, damages on collision, and keeps running'
   drive.step(0.05, true, 120);
   expect(run.distance).toBe(stopped);
   drive.reset();
-  run.target = 0.66;
+  run.target = 0.37;
   for (let i = 0; i < 20; i++) drive.step(0.05, false, 120);
-  expect(run.x).toBeGreaterThan(0.6);
+  expect(run.x).toBeCloseTo(0.37, 2);
   expect(run.distance).toBe(0);
   run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
   drive.step(0.05, true, 120);

@@ -280,3 +280,14 @@ ytmusic-player-bar
 ::-webkit-scrollbar-track {
   background: var(--player-surface, #181818);
 }
+
+/* The fixed bottom bar must span the viewport, including the scrollbar gutter. */
+ytmusic-app-layout > [slot='player-bar'] {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+ytmusic-player[player-ui-state='MINIPLAYER'] {
+  right: 12px !important;
+}

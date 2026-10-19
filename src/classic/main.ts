@@ -64,7 +64,7 @@ function localWindow(width: number, height: number, frame = true) {
     title: 'YouTube Music Spear',
     autoHideMenuBar: true,
     resizable: frame,
-    alwaysOnTop: !frame,
+    alwaysOnTop: false,
     skipTaskbar: !frame,
     webPreferences: {
       preload: localPreload,
@@ -128,6 +128,7 @@ export function showTrayPopup(win: BrowserWindow) {
     height: 320,
   });
   popup.webContents.setZoomFactor(1);
+  popup.setAlwaysOnTop(config.get('options.trayPinned'));
   popup.webContents.send('classic:refresh');
   popup.show();
   popup.focus();
@@ -258,6 +259,7 @@ async function snapshot() {
     proxy: config.get('options.proxy'),
     minimizeOnAutoStart: config.get('options.minimizeOnAutoStart') ?? true,
     tray: config.get('options.tray'),
+    trayClickPlayPause: config.get('options.trayClickPlayPause'),
     animatedSpeakers: config.get('options.animatedSpeakers') ?? true,
     trayPinned: config.get('options.trayPinned') ?? false,
     appearance: controls(
@@ -332,6 +334,11 @@ export function migrateClassicPreferences() {
 
 export function setupClassic(win: BrowserWindow) {
   player = win;
+  win.on('always-on-top-changed', (_event, pinned) => {
+    win.webContents.send('classic:pin-state', pinned);
+    settings?.setAlwaysOnTop(pinned, 'pop-up-menu');
+    settings?.webContents.send('classic:refresh');
+  });
   registerCallback((info) => {
     song = info;
     if (info.image !== artworkImage) {
@@ -518,6 +525,9 @@ export function setupClassic(win: BrowserWindow) {
             ? value
             : !config.get('options.trayPinned');
         config.set('options.trayPinned', pinned);
+        popup?.setAlwaysOnTop(pinned);
+        settings?.webContents.send('classic:refresh');
+        popup?.webContents.send('classic:refresh');
         return pinned;
       }
       if (action === 'song') {
@@ -611,6 +621,8 @@ export function setupClassic(win: BrowserWindow) {
         config.set('options.tray', value);
         pendingRestart.add('Tray visibility');
       }
+      if (action === 'trayClickPlayPause' && typeof value === 'boolean')
+        config.set('options.trayClickPlayPause', value);
       if (action === 'animatedSpeakers' && typeof value === 'boolean')
         config.set('options.animatedSpeakers', value);
       if (action === 'autoUpdates' && typeof value === 'boolean')
