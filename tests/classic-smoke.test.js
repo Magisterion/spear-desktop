@@ -526,6 +526,44 @@ test('Spear preferences use local IPC and portable data', async () => {
       game.getByText('Play music to bring the track to life'),
     ).toBeVisible();
     await expect(game.getByRole('button')).toHaveCount(0);
+    // Verify the rendered background, not just a metadata attribute: changing
+    // the current artwork must change pixels without reopening the game.
+    const setArtwork = (color) =>
+      game.evaluate((color) => {
+        let bar = document.querySelector('ytmusic-player-bar');
+        if (!bar) {
+          bar = document.createElement('ytmusic-player-bar');
+          bar.innerHTML = '<img class="image">';
+          document.body.append(bar);
+        }
+        bar.querySelector('img').src =
+          'data:image/svg+xml,' +
+          encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${color}"/></svg>`,
+          );
+      }, color);
+    const backgroundPixel = () =>
+      game.evaluate(() => {
+        const canvas = document
+          .querySelector('#spear-pulsefield')
+          .shadowRoot.querySelector('canvas');
+        return [...canvas.getContext('2d').getImageData(10, 150, 1, 1).data];
+      });
+    await setArtwork('#ff0000');
+    await expect
+      .poll(async () => {
+        const p = await backgroundPixel();
+        return p[0] - p[2];
+      })
+      .toBeGreaterThan(20);
+    await setArtwork('#0000ff');
+    await expect
+      .poll(async () => {
+        const p = await backgroundPixel();
+        return p[2] - p[0];
+      })
+      .toBeGreaterThan(20);
+
     await game.evaluate(async () => {
       const video = document.querySelector('video');
       Object.defineProperty(video, 'paused', {
@@ -988,4 +1026,86 @@ test('Pulseflight collects by position, damages on collision, and keeps running'
   run.objects.push({ x: 0, z: 0.879, hazard: true, color: 0 });
   drive.step(0.05, true, 120);
   expect(run.shield).toBe(100);
+});
+
+test('locked configuration survives startup, merges changes, and flushes recovery', async () => {
+  const syncFs = (await import('node:fs')).default;
+  const { default: Conf } = await import('conf');
+  const temporary = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'spear-config-lock-'),
+  );
+  const file = path.join(temporary, 'config.json');
+  await fs.writeFile(file, JSON.stringify({ theme: 'steel-blue', volume: 42 }));
+  let source = stripTypeScriptTypes(
+    await fs.readFile(path.join(root, 'src/config/resilient-store.ts'), 'utf8'),
+  );
+  source = source
+    .replace(/^import .*;$/gm, '')
+    .replace(/const Store = [\s\S]*?\.default;/, '')
+    .replace('export class', 'class');
+  let locked = true;
+  class LockingConf extends Conf {
+    get store() {
+      return super.store;
+    }
+    set store(value) {
+      if (locked)
+        throw Object.assign(new Error('Simulated Windows sharing violation'), {
+          code: 'EPERM',
+        });
+      super.store = value;
+    }
+  }
+  const ResilientStore = new Function(
+    'fs',
+    'Store',
+    'app',
+    'dialog',
+    source + '\nreturn ResilientStore;',
+  )(
+    syncFs,
+    LockingConf,
+    { whenReady: async () => {} },
+    { showMessageBox: async () => {} },
+  );
+  try {
+    const store = new ResilientStore({
+      cwd: temporary,
+      projectVersion: '3.12.14',
+      defaults: { firstRun: false },
+    });
+    store.set('volume', 65);
+    store.set('theme', 'graphite');
+    expect(store.get('volume')).toBe(65);
+    expect(store.get('theme')).toBe('graphite');
+    expect(JSON.parse(await fs.readFile(file, 'utf8')).volume).toBe(42);
+    expect(
+      JSON.parse(await fs.readFile(file + '.pending', 'utf8')).volume,
+    ).toBe(65);
+    // Simulate a restart while the canonical file is still locked.
+    const restarted = new ResilientStore({
+      cwd: temporary,
+      projectVersion: '3.12.14',
+    });
+    expect(restarted.get('volume')).toBe(65);
+    expect(restarted.get('theme')).toBe('graphite');
+    locked = false;
+    await expect
+      .poll(async () => JSON.parse(await fs.readFile(file, 'utf8')).volume, {
+        timeout: 12000,
+      })
+      .toBe(65);
+    await expect
+      .poll(
+        () =>
+          fs.access(file + '.pending').then(
+            () => true,
+            () => false,
+          ),
+        { timeout: 12000 },
+      )
+      .toBe(false);
+  } finally {
+    locked = false;
+  }
 });

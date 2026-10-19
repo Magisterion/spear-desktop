@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = e4bd3c1369135c4511d89695c224c6daf5d92923
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Preserve native media geometry and fix guide header overlap")
+          test "$(git rev-parse HEAD^)" = f14fc3b02104eb0ccf3b484b812ef77df3a5ac15
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Integrate Prism Run and match the native library icon")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:

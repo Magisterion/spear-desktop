@@ -79,8 +79,7 @@ export function createDrive() {
             run.bursts.push({ x: run.x, age: 0, hazard: true });
           } else if (!object.hazard) {
             run.combo++;
-            run.score += 100 * Math.min(4, 1 + Math.floor(run.combo / 10));
-            run.shield = Math.min(100, run.shield + 1);
+            run.score += 100 * Math.min(5, 1 + Math.floor(run.combo / 10));
             run.bursts.push({ x: object.x, age: 0, hazard: false });
           }
         } else if (!object.hazard) run.combo = 0;

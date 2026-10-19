@@ -102,7 +102,7 @@ export const TitleBar = (props: TitleBarProps) => {
             [
               'game',
               'M7 7h10l4 10-3 2-4-4h-4l-4 4-3-2Z M7 10v4m-2-2h4m7-1h.01m2 2h.01',
-              'Pulseflight',
+              'Prism Run',
             ],
             [
               'visualizer',
@@ -115,7 +115,7 @@ export const TitleBar = (props: TitleBarProps) => {
             ['home', 'm3 10 9-7 9 7M6 9v12h12V9M10 21v-7h4v7', 'Home'],
             [
               'library',
-              'M9 18V5l11-2v13M9 8l11-2M9 18a3 2 0 1 1-6 0 3 2 0 1 1 6 0M20 16a3 2 0 1 1-6 0 3 2 0 1 1 6 0',
+              'M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z',
               'Library',
             ],
           ] as const
@@ -156,6 +156,7 @@ export const TitleBar = (props: TitleBarProps) => {
               aria-hidden="true"
             >
               <path
+                fill={action === 'library' ? 'currentColor' : 'none'}
                 d={
                   action === 'pin'
                     ? pinned()

@@ -1,7 +1,7 @@
 import { audioMotion } from './audio';
 import { createDrive } from './drive';
 
-// Original artwork and straight-road driving game. No camera roll or borrowed assets.
+// Prism Run: fixed perspective, an unmarked surface, and the live player backdrop.
 let closeGame: (() => void) | null = null;
 function openGame() {
   if (closeGame) return;
@@ -17,12 +17,12 @@ function openGame() {
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent =
-    ':host{font:14px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{position:absolute;left:20px;top:18px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#score{position:absolute;right:20px;top:18px;max-width:52%;text-align:right}#status,#score{pointer-events:none;background:#071020d9;padding:10px 12px;border-radius:8px}footer{position:absolute;bottom:14px;left:12px;right:12px;text-align:center;pointer-events:none;color:#d2e3f3;text-shadow:0 1px 4px #000}progress{width:60px;height:6px;accent-color:#70f6e4}';
+    ':host{font:14px system-ui;color:white}*{box-sizing:border-box}canvas{position:absolute;inset:0;width:100%;height:100%;cursor:none;touch-action:none}#status{position:absolute;left:24px;top:22px;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#score{position:absolute;right:24px;top:22px;max-width:56%;text-align:right}#status,#score{pointer-events:none;background:#090b17bb;padding:12px 16px;border-radius:10px;line-height:1.5;letter-spacing:.3px}footer{position:absolute;bottom:14px;left:12px;right:12px;text-align:center;pointer-events:none;color:#d2e3f3;text-shadow:0 1px 4px #000}progress{width:60px;height:6px;accent-color:#70f6e4}';
   const canvas = document.createElement('canvas');
   canvas.tabIndex = 0;
   canvas.setAttribute(
     'aria-label',
-    'Pulseflight. Steer with arrows, A/D or mouse. Collect colored crystals and avoid red barriers. R restarts; Escape returns.',
+    'Prism Run. Steer with arrows, A/D or mouse. Collect colored crystals and avoid red barriers. R restarts; Escape returns.',
   );
   const status = document.createElement('span');
   status.id = 'status';
@@ -41,8 +41,10 @@ function openGame() {
   const ctx = canvas.getContext('2d')!;
   const drive = createDrive(),
     run = drive.run;
-  const keys = new Set<string>();
-  const colors = ['#64ebd5', '#ffc964', '#bb8bff', '#70bcff'];
+  const cover = new Image();
+  let coverUrl = '';
+  let nextArtworkCheck = 0;
+  const colors = ['#91ffe3', '#b6a0ff', '#ffd18c', '#70bcff'];
   let width = 960,
     height = 600,
     raf = 0,
@@ -70,24 +72,23 @@ function openGame() {
     else if (key === 'r') {
       drive.reset();
       lastBeat = audioMotion.beat;
-    } else keys.add(key);
+    } else if (!event.repeat) {
+      const direction = key === 'a' || key === 'arrowleft' ? -1 : 1;
+      run.target =
+        Math.max(-1, Math.min(1, Math.round(run.target / 0.66) + direction)) *
+        0.66;
+    }
   };
-  const keyup = (event: KeyboardEvent) => {
-    keys.delete(event.key.toLowerCase());
-  };
-  const blur = () => keys.clear();
+  let pointerPosition = 0;
   canvas.onpointermove = (event) => {
-    run.target =
+    const position =
       document.pointerLockElement === canvas ||
       root.pointerLockElement === canvas
-        ? Math.max(
-            -0.9,
-            Math.min(
-              0.9,
-              run.target + event.movementX / Math.max(200, width * 0.35),
-            ),
-          )
-        : Math.max(-0.9, Math.min(0.9, (event.clientX / width - 0.5) * 2.6));
+        ? pointerPosition + event.movementX / Math.max(200, width * 0.35)
+        : (event.clientX / width - 0.5) * 2.6;
+    pointerPosition = Math.max(-0.99, Math.min(0.99, position));
+    run.target =
+      Math.max(-1, Math.min(1, Math.round(pointerPosition / 0.66))) * 0.66;
   };
   canvas.onpointerdown = (event) => {
     if (event.pointerType !== 'touch')
@@ -101,8 +102,6 @@ function openGame() {
   };
   document.addEventListener('pointerlockchange', pointerLockChanged);
   document.addEventListener('keydown', keydown, true);
-  document.addEventListener('keyup', keyup, true);
-  window.addEventListener('blur', blur);
   canvas.focus();
   void canvas.requestPointerLock()?.catch(() => {});
   closeGame = () => {
@@ -110,13 +109,13 @@ function openGame() {
     resize.disconnect();
     document.removeEventListener('pointerlockchange', pointerLockChanged);
     document.removeEventListener('keydown', keydown, true);
-    document.removeEventListener('keyup', keyup, true);
-    window.removeEventListener('blur', blur);
     if (
       document.pointerLockElement === host ||
       root.pointerLockElement === canvas
     )
       document.exitPointerLock();
+    cover.onload = null;
+    cover.removeAttribute('src');
     host.remove();
     closeGame = null;
     previousFocus?.focus();
@@ -163,10 +162,6 @@ function openGame() {
       lastBeat = audioMotion.beat;
     }
     lastMediaTime = video?.currentTime ?? 0;
-    if (keys.has('arrowleft') || keys.has('a'))
-      run.target = Math.max(-0.9, run.target - dt * 2.4);
-    if (keys.has('arrowright') || keys.has('d'))
-      run.target = Math.min(0.9, run.target + dt * 2.4);
     if (audioMotion.active && audioMotion.beat !== lastBeat) {
       drive.beat(audioMotion.band);
       lastBeat = audioMotion.beat;
@@ -174,18 +169,46 @@ function openGame() {
     }
     drive.step(dt, audioMotion.active, audioMotion.bpm);
     pulse = Math.max(0, pulse - dt * 3);
-    ctx.fillStyle = '#060d1b';
+    ctx.fillStyle = '#090b17';
     ctx.fillRect(0, 0, width, height);
+    // Artwork is independent from the visualizer canvas; a track change must
+    // replace it even when the same visualizer continues rendering.
+    if (time >= nextArtworkCheck) {
+      nextArtworkCheck = time + 250;
+      const image = document.querySelector<HTMLImageElement>(
+        'ytmusic-player-bar img.image, ytmusic-player-bar img',
+      );
+      const url = image?.currentSrc || image?.src || '';
+      if (url !== coverUrl) {
+        coverUrl = url;
+        if (url) cover.src = url;
+        else cover.removeAttribute('src');
+      }
+      host.dataset.cover = url ? 'available' : 'none';
+    }
+    if (coverUrl && cover.complete && cover.naturalWidth) {
+      const scale = Math.max(
+        width / cover.naturalWidth,
+        height / cover.naturalHeight,
+      );
+      const w = cover.naturalWidth * scale,
+        h = cover.naturalHeight * scale;
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(cover, (width - w) / 2, (height - h) / 2, w, h);
+      ctx.globalAlpha = 1;
+    }
     const visualizer = document.querySelector<HTMLCanvasElement>('#visualizer');
     let hasBackground = false;
     if (visualizer && visualizer.width && visualizer.height) {
       try {
-        ctx.globalAlpha = 0.4;
+        ctx.globalAlpha = 0.45;
+        ctx.globalCompositeOperation = 'screen';
         ctx.drawImage(visualizer, 0, 0, width, height);
         hasBackground = true;
       } catch {
       } finally {
         ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
       }
     }
     if (!hasBackground) {
@@ -203,42 +226,26 @@ function openGame() {
         ctx.stroke();
       }
     }
-    // A fixed horizon and fixed camera keep steering free from camera sway.
+    // No lane markings, scrolling grid, roadside posts, camera sway, or zoom.
+    // Depth comes only from approaching objects and these stationary edges.
     polygon(
       [
         project(-1.12, 0),
         project(1.12, 0),
-        project(1.12, 1),
-        project(-1.12, 1),
+        project(1.12, 1.13),
+        project(-1.12, 1.13),
       ],
-      '#040d1ae8',
-      '#51879f',
+      '#0a1024c9',
     );
-    for (const x of [-1, -0.33, 0.33, 1]) {
+    for (const x of [-1.12, 1.12]) {
       const a = project(x, 0),
-        b = project(x, 1);
+        b = project(x, 1.13);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = x === -1 || x === 1 ? '#68d4e9' : '#315269';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ac9aff50';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-    }
-    for (let i = 0; i < 18; i++) {
-      const z = (i / 18 + run.distance) % 1,
-        a = project(-1, z),
-        b = project(1, z);
-      ctx.strokeStyle = `rgba(92,180,210,${0.12 + z * 0.24})`;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-      for (const side of [-1, 1]) {
-        const p = project(side * 1.22, z),
-          h = (12 + audioMotion.bass * 60 + pulse * 20) * p.scale;
-        ctx.fillStyle = colors[i % 4] + '99';
-        ctx.fillRect(p.x - 3 * p.scale, p.y - h, 6 * p.scale, h);
-      }
     }
     for (const object of [...run.objects].sort((a, b) => a.z - b.z)) {
       const p = project(object.x, object.z),
@@ -277,43 +284,49 @@ function openGame() {
         );
       ctx.shadowBlur = 0;
     }
-    const car = project(run.x, 0.88),
-      size = Math.max(15, width * 0.032);
+    const prism = project(run.x, 0.88),
+      size = Math.max(18, Math.min(34, width * 0.027)),
+      prismColor =
+        colors[Math.max(0, Math.min(2, Math.round(run.target / 0.66) + 1))];
     if (run.shield > 0) {
       ctx.globalAlpha =
         run.invulnerable > 0 ? 0.6 + Math.sin(time * 0.03) * 0.3 : 1;
+      const tail = size + audioMotion.energy * 25 + Math.min(40, run.combo);
       polygon(
         [
-          { x: car.x - size * 0.45, y: car.y + size * 0.1 },
-          { x: car.x + size * 0.45, y: car.y + size * 0.1 },
-          {
-            x: car.x + size * 0.2,
-            y: car.y + size * (0.9 + audioMotion.bass * 0.7),
-          },
-          {
-            x: car.x - size * 0.2,
-            y: car.y + size * (0.9 + audioMotion.bass * 0.7),
-          },
+          { x: prism.x - 8, y: prism.y },
+          { x: prism.x, y: prism.y + tail },
+          { x: prism.x + 8, y: prism.y },
         ],
-        '#58dfff88',
+        prismColor + '40',
+      );
+      ctx.shadowColor = prismColor;
+      ctx.shadowBlur = 22;
+      polygon(
+        [
+          { x: prism.x, y: prism.y - size },
+          { x: prism.x + size * 0.63, y: prism.y },
+          { x: prism.x, y: prism.y + size },
+          { x: prism.x - size * 0.63, y: prism.y },
+        ],
+        prismColor,
+      );
+      ctx.shadowBlur = 0;
+      polygon(
+        [
+          { x: prism.x, y: prism.y - size },
+          { x: prism.x, y: prism.y + size },
+          { x: prism.x - size * 0.63, y: prism.y },
+        ],
+        '#ffffff55',
       );
       polygon(
         [
-          { x: car.x, y: car.y - size * 1.5 },
-          { x: car.x + size, y: car.y + size * 0.3 },
-          { x: car.x, y: car.y },
-          { x: car.x - size, y: car.y + size * 0.3 },
+          { x: prism.x, y: prism.y - size },
+          { x: prism.x + size * 0.63, y: prism.y },
+          { x: prism.x, y: prism.y },
         ],
-        '#8ddfee',
-        '#efffff',
-      );
-      polygon(
-        [
-          { x: car.x, y: car.y - size },
-          { x: car.x + size * 0.3, y: car.y - size * 0.2 },
-          { x: car.x - size * 0.3, y: car.y - size * 0.2 },
-        ],
-        '#19315f',
+        '#ffffffaa',
       );
       ctx.globalAlpha = 1;
     }
@@ -334,7 +347,7 @@ function openGame() {
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 24px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('SHIP DESTROYED', width / 2, height * 0.4 + 38);
+      ctx.fillText('SHIELD DEPLETED', width / 2, height * 0.4 + 38);
       ctx.font = '16px system-ui';
       ctx.fillText(
         'Press R to restart · Esc to return',
@@ -343,9 +356,9 @@ function openGame() {
       );
     }
     status.textContent = audioMotion.active
-      ? track || 'Pulseflight'
+      ? track || 'Prism Run'
       : 'Play music to bring the track to life';
-    score.textContent = `${run.score} pts · ×${Math.min(4, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${run.shield} · Level ${1 + Math.floor(run.score / 1500)}`;
+    score.textContent = `${run.score} pts · ×${Math.min(5, 1 + Math.floor(run.combo / 10))} · ${run.combo} streak · Shield ${'◆'.repeat(Math.ceil(run.shield / 35))}${'◇'.repeat(3 - Math.ceil(run.shield / 35))}`;
     meter.value = Math.max(audioMotion.bass, audioMotion.energy);
     raf = requestAnimationFrame(frame);
   }

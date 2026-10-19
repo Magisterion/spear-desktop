@@ -25,6 +25,7 @@ win:
   artifactName: YouTube-Music-Spear.exe
 portable:
   requestExecutionLevel: user
+  unpackDirName: YouTube-Music-Spear-runtime
 directories:
   output: ./pack/
 publish:

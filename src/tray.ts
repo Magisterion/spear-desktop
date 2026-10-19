@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import PausedTrayIconWhite from '@assets/tray-paused-white.png?asset&asarUnpack';
 import PausedTrayIcon from '@assets/tray-paused.png?asset&asarUnpack';
 import TrayIconWhite from '@assets/tray-white.png?asset&asarUnpack';
@@ -68,7 +69,13 @@ export const setUpTray = (app: Electron.App, win: Electron.BrowserWindow) => {
       height: 16 * pixelRatio,
     });
 
-  tray = new Tray(defaultTrayIcon);
+  // Unsigned Windows tray identities are tied to the actual executable path.
+  // The portable runtime path is stable across releases; distinguish other paths.
+  const identity = createHash('sha256')
+    .update(process.execPath.toLowerCase())
+    .digest('hex');
+  const guid = `${identity.slice(0, 8)}-${identity.slice(8, 12)}-4${identity.slice(13, 16)}-a${identity.slice(17, 20)}-${identity.slice(20, 32)}`;
+  tray = new Tray(defaultTrayIcon, is.windows() ? guid : undefined);
 
   tray.setToolTip(
     t('main.tray.tooltip.default', {
