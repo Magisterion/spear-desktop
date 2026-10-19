@@ -729,6 +729,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       window.outputMeter = outputMeter;
       oscillator.start();
       window.testTone = source;
+      video.dispatchEvent(new Event('play', { bubbles: true }));
     });
     await expect
       .poll(() => game.evaluate(() => window.audioLevel))
