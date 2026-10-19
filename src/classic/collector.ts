@@ -68,7 +68,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     o.done = true;
     run.combo++;
     run.score +=
-      (o.radius < 13 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
+      (o.radius < 24 ? 30 : 10) * Math.min(5, 1 + Math.floor(run.combo / 15));
     run.best = Math.max(run.best, run.score);
     run.mass = Math.min(16, run.mass + 0.21);
     burst(o.x, o.y);
@@ -124,7 +124,7 @@ export function createCollector(onPulse: () => void = () => {}) {
     run.objects.push({
       x,
       y: -0.06,
-      radius: complex ? 9 + (i % 3) * 2 : 19 + (i % 3) * 3,
+      radius: complex ? 18 + (i % 3) * 3 : 30 + (i % 3) * 4,
       hue: 160 + band * 45,
       sides: complex ? 5 : 3 + (i % 4),
       hazard: false,
@@ -135,7 +135,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       run.objects.push({
         x: clamp(x + (x > 0.5 ? -0.24 : 0.24), 0.08, 0.92),
         y: -0.12,
-        radius: 18,
+        radius: 27,
         hue: 0,
         sides: 8,
         hazard: true,
@@ -145,7 +145,7 @@ export function createCollector(onPulse: () => void = () => {}) {
       run.objects.push({
         x: clamp(x + 0.12, 0.08, 0.92),
         y: -0.1,
-        radius: 8,
+        radius: 17,
         hue: 280,
         sides: 3,
         hazard: false,
@@ -262,8 +262,7 @@ export function createCollector(onPulse: () => void = () => {}) {
         if (!o.hazard && !run.respawn) {
           run.score -= 15;
           run.combo = 0;
-          run.mass = Math.max(0, run.mass - 0.4);
-          if (!run.mass) die();
+          // A missed collectible costs score only. Only red mines damage the core.
         }
       }
     }
@@ -293,13 +292,22 @@ export function createCollector(onPulse: () => void = () => {}) {
       ctx.fillStyle = color;
       ctx.fill();
     };
-    for (let i = 0; i < 55; i++)
-      dot(
-        (i * 0.618033) % 1,
-        (i * 0.3819 + run.distance * (0.25 + (i % 3) * 0.15)) % 1,
-        1,
-        '#b0dfff44',
-      );
+    // Three downward-moving layers establish upward flight without moving the camera.
+    for (let i = 0; i < 90; i++) {
+      const layer = i % 3;
+      const x = (i * 0.618033) % 1;
+      const y = (i * 0.3819 + run.distance * (0.65 + layer * 0.8)) % 1;
+      const size = 0.9 + layer * 0.65;
+      const opacity = 0.18 + layer * 0.11;
+      const length = (3 + layer * 5) * (0.7 + run.speed * 2);
+      ctx.beginPath();
+      ctx.moveTo(x * w, y * h - length);
+      ctx.lineTo(x * w, y * h);
+      ctx.lineWidth = size;
+      ctx.strokeStyle = `rgba(176,223,255,${opacity})`;
+      ctx.stroke();
+      dot(x, y, size, `rgba(210,242,255,${opacity + 0.12})`);
+    }
     for (const o of run.objects) {
       ctx.save();
       ctx.translate(o.x * w, o.y * h);

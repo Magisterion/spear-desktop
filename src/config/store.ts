@@ -292,6 +292,9 @@ const migrations = {
   '>=3.12.18'(store: IStore) {
     store.set('options.trayClickPlayPause', true);
   },
+  '>=3.12.19'(store: IStore) {
+    store.set('options.trayClickPlayPause', false);
+  },
 };
 
 export const store = new Store({

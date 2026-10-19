@@ -132,7 +132,7 @@ test('Spear preferences use local IPC and portable data', async () => {
       0,
     );
     await expect(
-      settings.getByText('Version 3.12.18', { exact: true }),
+      settings.getByText('Version 3.12.19', { exact: true }),
     ).toBeVisible();
     const pin = settings.getByLabel('Always on top', { exact: true });
     const pinButton = player.locator(
@@ -156,7 +156,7 @@ test('Spear preferences use local IPC and portable data', async () => {
         'Single click opens the window; double click plays/pauses',
         { exact: true },
       ),
-    ).not.toBeChecked();
+    ).toBeChecked();
     await expect(
       settings.getByRole('heading', {
         name: 'Compatibility & maintenance',
@@ -1249,9 +1249,18 @@ test('Stardrift collects with its trail, clears mines, penalizes misses and refo
   r.objects.push(shape(0.2, 0.45));
   game.step(0.001, true, 120, 0.1, false);
   expect(r.score).toBe(60);
+  const strengthBeforeMiss = r.mass;
   r.objects.push(shape(0.1, 1.2));
   game.step(0.001, true, 120, 0.1, false);
   expect(r.score).toBe(45);
+  expect(r.mass).toBe(strengthBeforeMiss);
+  for (let i = 0; i < 40; i++) {
+    r.objects.push(shape(0.1, 1.2));
+    game.step(0.001, true, 120, 0.1, false);
+  }
+  expect(r.mass).toBe(strengthBeforeMiss);
+  expect(r.respawn).toBe(0);
+  expect(r.score).toBe(45 - 40 * 15);
   r.charge = 1;
   r.held = true;
   r.objects.push(shape(0.6, 0.7, true));

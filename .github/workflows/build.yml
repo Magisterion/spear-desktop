@@ -32,8 +32,8 @@ jobs:
           GIT_COMMITTER_EMAIL: noreply@users.noreply.github.com
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = 35f48056b524ee3e5202718bd1f08ab994c93485
-          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Emit the media play event in the synthetic audio fixture")
+          test "$(git rev-parse HEAD^)" = a720d8bbf3e8ad4cf12fd704ef0f51754a9a7f52
+          safe=$(git commit-tree "HEAD^{tree}" -p "HEAD^" -m "Improve Stardrift readability and reserve damage for red mines")
           git push origin "$safe:refs/heads/feat/classic-desktop" --force-with-lease="refs/heads/feat/classic-desktop:$GITHUB_SHA"
           echo "sha=$safe" >> "$GITHUB_OUTPUT"
   windows:
